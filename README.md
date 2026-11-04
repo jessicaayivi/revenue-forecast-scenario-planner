@@ -1,6 +1,10 @@
 # Revenue Forecast & Scenario Planner
 
 [![tests](https://github.com/jessicaayivi/revenue-forecast-scenario-planner/actions/workflows/tests.yml/badge.svg)](https://github.com/jessicaayivi/revenue-forecast-scenario-planner/actions/workflows/tests.yml)
+[![Open the live app](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://revenue-scenario-planner-jessica-ayivi.streamlit.app/)
+
+**▶ Try the live app: [revenue-scenario-planner-jessica-ayivi.streamlit.app](https://revenue-scenario-planner-jessica-ayivi.streamlit.app/)**
+(no install needed: pick a scenario, test a what-if, explore the history).
 
 > Demonstration project using public data (Olist). Not affiliated with any employer.
 
@@ -79,6 +83,8 @@ and where the same change would be worth most. A **price vs volume** mode raises
 respond with an elasticity you choose, and shows the break-even point. It uses the same engine as the notebooks, so the numbers always match.
 
 ![Scenario planner: a tour of the app](docs/images/05_planner_tour.gif)
+
+Open it online: **[revenue-scenario-planner-jessica-ayivi.streamlit.app](https://revenue-scenario-planner-jessica-ayivi.streamlit.app/)**
 
 ## How it works
 
