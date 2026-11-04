@@ -48,14 +48,16 @@ for _name in ("cmdstanpy", "prophet"):
 
 P = cfg.PROCESSED_DIR
 REVENUE_MODELS = ["Naive", "WindowAverage", "RWD", "AutoETS", "AutoTheta"]
-MODELS = REVENUE_MODELS + ["Drivers", "Prophet", "LagRegression"]
+MODELS = REVENUE_MODELS + ["Drivers", "Prophet", "LagRegression", "ProphetKPI", "ProphetLead"]
 LABELS = {"Naive": "Last month repeated", "WindowAverage": "3-month average", "RWD": "Random walk with drift",
           "AutoETS": "AutoETS (exponential smoothing)", "AutoTheta": "AutoTheta",
           "Drivers": "Driver-based (customers x orders/customer x AOV)",
           "Prophet": "Prophet (daily, weekly + yearly seasonality, Black Friday)",
-          "LagRegression": "Regression on revenue + 3-month customer momentum"}
+          "LagRegression": "Regression on revenue + 3-month customer momentum",
+          "ProphetKPI": "Prophet + forecast KPIs (customers, orders/customer, AOV)",
+          "ProphetLead": "Prophet + leading indicators (late deliveries, cancellations, new customers; 2-month lag)"}
 # Models whose forecast already contains a Black Friday effect (no extra uplift added).
-HAS_BLACK_FRIDAY = {"Prophet"}
+HAS_BLACK_FRIDAY = {"Prophet", "ProphetKPI", "ProphetLead"}
 BLACK_FRIDAYS = ["2016-11-25", "2017-11-24", "2018-11-23", "2019-11-29"]
 
 
@@ -141,10 +143,89 @@ def lag_regression_forecasts(cutoffs: list[str], h: int, end: str) -> pd.DataFra
     return pd.DataFrame(rows)
 
 
+# ------------------------------------------------------------------ Prophet with regressors (monthly)
+LEAD_VARS = ["late_share", "cancel_rate", "new_share"]
+LEAD_LAG = 2  # months: an order's lateness is only known once it has been delivered
+
+
+def _series_kpis(end: str) -> pd.DataFrame:
+    """Monthly revenue, customers, orders per customer, AOV and leading indicators per series (markets + Total)."""
+    mk = _window(pd.read_csv(P / "monthly_market.csv"), end)
+    tot = mk.groupby("month", as_index=False)[["revenue", "orders", "customers"]].sum().assign(market="Total")
+    k = pd.concat([mk[["month", "market", "revenue", "orders", "customers"]], tot])
+    k["opc"], k["aov"] = k["orders"] / k["customers"], k["revenue"] / k["orders"]
+    ind = _window(pd.read_csv(P / "monthly_indicators.csv"), end)
+    return k.merge(ind, on=["month", "market"], how="left").sort_values(["market", "month"])
+
+
+def _prophet_monthly(train: pd.DataFrame, future: pd.DataFrame, regs: list[str]) -> np.ndarray:
+    """Monthly Prophet: linear trend (3 changepoints), Black Friday month as a holiday, given regressors.
+
+    No yearly seasonality: 20 months cannot identify it (the daily Prophet model showed this).
+    """
+    from prophet import Prophet
+
+    for name in ("cmdstanpy", "prophet"):
+        logging.getLogger(name).setLevel(logging.ERROR)
+    hol = pd.DataFrame({"holiday": "black_friday_month",
+                        "ds": pd.to_datetime([d[:7] + "-01" for d in BLACK_FRIDAYS])})
+    m = Prophet(growth="linear", n_changepoints=3, yearly_seasonality=False, weekly_seasonality=False,
+                daily_seasonality=False, holidays=hol)
+    for r in regs:
+        m.add_regressor(r)
+    m.fit(train[["ds", "y"] + regs])
+    return np.clip(m.predict(future[["ds"] + regs])["yhat"].to_numpy(), 0, None)
+
+
+def prophet_regressor_forecasts(cutoffs: list[str], h: int, end: str) -> pd.DataFrame:
+    """Two Prophet models with regressors, per series and cutoff.
+
+    ProphetKPI:  regressors customers, orders per customer, AOV. Their future values come from other models
+                 fitted on data up to the cutoff (customers: AutoETS; orders per customer and AOV: 3-month average).
+    ProphetLead: regressors late-delivery share, cancellation rate and new-customer share, lagged 2 months.
+                 For a future month m the value used is the indicator of month min(m-2, cutoff-1): the latest
+                 month whose deliveries are known at the cutoff.
+    """
+    k = _series_kpis(end)
+    k["ds"] = _ds(k["month"])
+    rows = []
+    for c in cutoffs:
+        cp = pd.Period(c, "M")
+        hist = k[k["month"] <= c]
+        # stage 1 for ProphetKPI: forecast customers with AutoETS
+        cust = hist[["market", "ds", "customers"]].rename(columns={"market": "unique_id", "customers": "y"})
+        cf = _flat(StatsForecast(models=[AutoETS(season_length=1)], freq="MS", n_jobs=1).forecast(df=cust, h=h))
+        for uid, g in hist.groupby("market"):
+            g = g.sort_values("month").reset_index(drop=True)
+            fut_months = [cp + i for i in range(1, h + 1)]
+            fut = pd.DataFrame({"ds": [m.to_timestamp() for m in fut_months]})
+            # ProphetKPI
+            fut_k = fut.assign(customers=cf[cf["unique_id"] == uid]["AutoETS"].to_numpy(),
+                               opc=g["opc"].tail(3).mean(), aov=g["aov"].tail(3).mean())
+            yk = _prophet_monthly(g.rename(columns={"revenue": "y"}), fut_k, ["customers", "opc", "aov"])
+            # ProphetLead: lagged indicators
+            ind = g.set_index("month")[LEAD_VARS]
+            tr = g.copy()
+            for v in LEAD_VARS:
+                tr[v + "_lag"] = [ind[v].get(str(pd.Period(m, "M") - LEAD_LAG)) for m in tr["month"]]
+            tr = tr.dropna(subset=[v + "_lag" for v in LEAD_VARS])
+            known = str(cp - 1)
+            fut_l = fut.copy()
+            for v in LEAD_VARS:
+                fut_l[v + "_lag"] = [ind[v].get(min(str(m - LEAD_LAG), known)) for m in fut_months]
+            yl = _prophet_monthly(tr.rename(columns={"revenue": "y"}), fut_l, [v + "_lag" for v in LEAD_VARS])
+            for m, a, b in zip(fut_months, yk, yl):
+                rows.append({"unique_id": uid, "cutoff": cp.to_timestamp(), "ds": m.to_timestamp(),
+                             "ProphetKPI": float(a), "ProphetLead": float(b)})
+    return pd.DataFrame(rows)
+
+
 def _extra_models(cutoffs: list[str], h: int, end: str) -> pd.DataFrame:
     p = prophet_forecasts(cutoffs, h)
     r = lag_regression_forecasts(cutoffs, h, end)
-    return p.merge(r, on=["unique_id", "cutoff", "ds"], how="outer")
+    pr = prophet_regressor_forecasts(cutoffs, h, end)
+    return (p.merge(r, on=["unique_id", "cutoff", "ds"], how="outer")
+             .merge(pr, on=["unique_id", "cutoff", "ds"], how="outer"))
 
 
 def make_models():

@@ -90,6 +90,14 @@ def test_daily_series_adds_up_to_monthly():
     assert len(days) == (days.max() - days.min()).days + 1  # every day present
 
 
+def test_leading_indicators_are_valid_rates():
+    d = pd.read_csv(P / "monthly_indicators.csv")
+    assert set(d["market"]) == set(cfg.MARKETS) | {"Total"}
+    assert d.groupby("market")["month"].nunique().eq(cfg.HISTORY_MONTHS).all()
+    for v in ("cancel_rate", "late_share", "new_share"):
+        assert d[v].between(0, 1).all(), v
+
+
 def test_quality_report_matches_tables():
     dq = json.loads((P / "data_quality.json").read_text())
     total = pd.read_csv(P / "monthly_total.csv")

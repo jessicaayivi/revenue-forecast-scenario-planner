@@ -120,6 +120,33 @@ def test_start_here_explains_time_frame_and_markets():
     assert "How to use it" in text
 
 
+def test_history_tab_shows_selected_metric():
+    at = AppTest.from_file(APP, default_timeout=60).run()
+    assert "History" in [t.label for t in at.tabs] and "Data" in [t.label for t in at.tabs]
+    for metric in ("revenue", "customers", "late_share", "price_per_item"):
+        at.selectbox(key="hist_metric").set_value(metric).run()
+        at.multiselect(key="hist_markets").set_value(["Total", "SP"]).run()
+        assert not at.exception, metric
+    # the revenue history matches the monthly table
+    at.selectbox(key="hist_metric").set_value("revenue").run()
+    at.multiselect(key="hist_markets").set_value(["Total"]).run()
+    df = next(d.value for d in at.dataframe if any("Total" in str(c) for c in d.value.columns))
+    import pandas as pd
+    tot = pd.read_csv(cfg.PROCESSED_DIR / "monthly_total.csv")
+    tot = tot[tot["in_model_window"]].set_index("month")["revenue"]
+    assert df.iloc[:, 0].to_numpy() == pytest.approx(tot.loc[df.index].to_numpy(), rel=1e-6)
+
+
+def test_data_tab_previews_every_table():
+    at = AppTest.from_file(APP, default_timeout=60).run()
+    opts = at.selectbox(key="data_table").options
+    assert len(opts) >= 15
+    for f in [o.split(":")[0] for o in opts]:
+        assert (cfg.PROCESSED_DIR / f).exists(), f
+    at.selectbox(key="data_table").set_value("monthly_indicators.csv").run()
+    assert not at.exception
+
+
 def test_slider_moves_total():
     at = AppTest.from_file(APP, default_timeout=60).run()
     before = six_month_value(at)

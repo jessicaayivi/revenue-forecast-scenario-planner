@@ -51,7 +51,10 @@ MODEL_NAMES = {"WindowAverage": "3-month average", "Naive": "Last month repeated
                "AutoETS": "AutoETS (exponential smoothing)", "RWD": "Random walk with drift",
                "Drivers": "Driver-based (customers x orders/customer x AOV)",
                "Prophet": "Prophet (daily, seasonality, Black Friday)",
-               "LagRegression": "Regression on revenue + customer momentum"}
+               "LagRegression": "Regression on revenue + customer momentum",
+               "ProphetKPI": "Prophet + forecast KPIs (customers, orders/customer, AOV)",
+               "ProphetLead": "Prophet + leading indicators (late deliveries, cancellations, new customers)"}
+N_MODELS = len(MODEL_NAMES)
 PLAN_MONTHS = scenarios.forecast_months()  # months still to forecast (the rest of the plan is actuals)
 
 
@@ -80,20 +83,55 @@ if "preset" not in st.session_state:
 
 # ------------------------------------------------------------------ sidebar
 with st.sidebar:
+    with st.expander("How to use these controls", expanded=False):
+        st.markdown(f"""
+These controls build the **{cfg.PLAN_NAME} plan** shown on every tab.
+
+1. **Pick a preset**: a story about what happens next (Downside, Base or Upside).
+2. **Black Friday**: switch the November boost on or off.
+3. **Fine-tune a market** (optional): open it and move its sliders. The scenario then shows *(edited)*.
+
+Every number on the page updates as you go. Choose a preset again to reset the sliders.
+To test a single idea instead ("what if prices rise 5%?"), use the **What-if** tab.
+""")
+
     st.radio("Show amounts in", ["R$", "€"], horizontal=True, key="currency",
              help=f"Brazilian real or euro. Euro amounts use one constant rate: R$ {cfg.BRL_PER_EUR} = €1 "
                   f"({cfg.FX_SOURCE}), so exchange-rate swings do not distort growth.")
+    st.caption("Display only: it does not change the plan.")
+
     st.header("Scenario")
-    st.selectbox("Start from a preset", cfg.SCENARIOS, key="preset", on_change=apply_preset)
+    st.caption(f"Jul–Aug 2018 are actual sales; a scenario only changes the forecast months ({cfg.FORECAST_LABEL}).")
+    st.selectbox("Start from a preset", cfg.SCENARIOS, key="preset", on_change=apply_preset,
+                 help="A preset fills in the market sliders below with growth rates measured in the data.")
     st.caption(scenarios.DESCRIPTIONS[st.session_state["preset"]])
+    _fx = 1.0 if st.session_state["currency"] == "R$" else 1 / cfg.BRL_PER_EUR
+    _sym = st.session_state["currency"]
+    _desc = {"Downside": "customers keep falling as in the last quarter",
+             "Base": "sales stay at the recent level",
+             "Upside": "last 6 months' growth returns"}
+    st.markdown("\n".join(
+        f"- **{n}**: {_desc[n]} → {_sym} {preset_totals[n] * _fx / 1e6:.2f}M" for n in cfg.SCENARIOS
+    ).replace("$", "\\$"))
+
     bf = st.toggle(f"Black Friday uplift in November (x{uplift:.2f})", value=True,
                    help="From one November (2017). A planning assumption, not a learned effect.")
+    st.caption(f"On: November gets {uplift - 1:.0%} more revenue than a normal month, as in Nov 2017. "
+               "Off: November is a normal month. It rests on a single November, so it is a switch.")
+
     st.subheader("Monthly growth by market (%)")
+    st.caption("Optional fine-tuning. Each market has two sliders, set by the preset: how fast its number of "
+               "**customers** and its **average order value (AOV)** grow or shrink **each month**. "
+               "Example: SP customers at +2.00 means 2% more SP customers every month.")
     for m in cfg.MARKETS:
         with st.expander(m, expanded=False):
-            st.slider("Customers, % per month", -8.0, 8.0, step=0.01, format="%.2f", key=f"gc_{m}")
-            st.slider("AOV, % per month", -4.0, 4.0, step=0.01, format="%.2f", key=f"ga_{m}")
-    st.caption(f"Orders per customer is held at its {cfg.BASELINE_LABEL} level (about 1.007): it barely moved in the data.")
+            st.slider("Customers, % per month", -8.0, 8.0, step=0.01, format="%.2f", key=f"gc_{m}",
+                      help="Monthly growth in the number of customers in this market. 0 = stays at its "
+                           f"{cfg.BASELINE_LABEL} level.")
+            st.slider("AOV, % per month", -4.0, 4.0, step=0.01, format="%.2f", key=f"ga_{m}",
+                      help="Monthly growth in the average order value (revenue per order) in this market.")
+    st.caption(f"No slider for orders per customer: almost everyone orders once, so it is held at its "
+               f"{cfg.BASELINE_LABEL} level (about 1.007).")
 
 # ------------------------------------------------------------------ currency helpers
 SYM = st.session_state["currency"]
@@ -158,8 +196,8 @@ k1[1].metric(f"vs {cfg.PREV_HALF_NAME} actual", f"{tot['six_months']/prev_half-1
 k2[0].metric(Q1, mm(tot["plan_q1"]), help=f"Includes {ACT_LABEL} actuals.")
 k2[1].metric(Q2, mm(tot["plan_q2"]))
 
-tab_start, tab_plan, tab_whatif, tab_where, tab_check, tab_about = st.tabs(
-    ["Start here", "Plan", "What-if", "Where to invest", "Forecast check", "Method & data"])
+tab_start, tab_plan, tab_whatif, tab_where, tab_check, tab_hist, tab_data, tab_about = st.tabs(
+    ["Start here", "Plan", "What-if", "Where to invest", "Forecast check", "History", "Data", "Method"])
 
 # ------------------------------------------------------------------ start here
 with tab_start:
@@ -242,9 +280,12 @@ with tab_start:
 3. **What-if** tab: test a hypothesis, e.g. "+10% customers in SP from October" or "raise prices 5%, and lose
    some customers". It shows the revenue impact and where the same change is worth most.
 4. **Where to invest** tab: market and category scorecards: size, momentum and order value.
-5. **Forecast check** tab: eight forecasting models compared, and what would have happened if we had planned in
+5. **Forecast check** tab: {N_MODELS} forecasting models compared, and what would have happened if we had planned in
    June 2018.
-6. Fine-tune: open a market in the sidebar to set its monthly customer and AOV growth; switch Black Friday on
+6. **History** tab: the monthly history of every metric (revenue, customers, AOV, late deliveries...) by market
+   and category, with tables to download. **Data** tab: where the data comes from, how it was cleaned, and a
+   glossary of every term.
+7. Fine-tune: open a market in the sidebar to set its monthly customer and AOV growth; switch Black Friday on
    or off; show amounts in R$ or €.
 """)
 
@@ -255,7 +296,7 @@ with tab_start:
   run rate, plus Black Friday); downside {mm(preset_totals['Downside'])}, upside {mm(preset_totals['Upside'])}.
 - Growth came from **new customers**, not repeat buyers: only {dq['repeat_rate_model_window']:.0%} of customers
   ordered more than once. And it had stalled: monthly customers fell in {cfg.BASELINE_LABEL} in every market.
-- A simple flat forecast beat seven alternatives, including Prophet and KPI-based models (see **Forecast check**).
+- A simple flat forecast beat {N_MODELS - 1} alternatives, including Prophet and KPI-based models (see **Forecast check**).
 - **SP** is {mk.loc['SP', 'revenue_share']:.0%} of revenue and the biggest lever; **South** and **Rest of Brazil**
   grew through order value; **RJ** shrank.
 - Full reasoning: [decision memo]({REPO_URL}/blob/main/docs/decision_memo.md) · code: [GitHub]({REPO_URL}).
@@ -548,7 +589,7 @@ with tab_check:
     picked = fsum["check"]["selected_by_backtest"]
     bt_avg = scores.groupby("model")["wape"].mean()
     md(f"""
-Eight forecasting models were compared in two tests. Each model only ever sees data up to the month it forecasts
+{N_MODELS} forecasting models were compared in two tests. Each model only ever sees data up to the month it forecasts
 from, so nothing is learned from the answer.
 
 - **Backtest** (data up to {cfg.month_label(cfg.MODEL_END)}): each model forecasts {cfg.FORECAST_H} months ahead from
@@ -562,7 +603,8 @@ from, so nothing is learned from the answer.
     c_real = f"Real {cfg.span_label(str(pd.Period(cfg.CHECK_END, 'M') + 1), cfg.MODEL_END)} %"
     short = {"WindowAverage": "3-month average", "Naive": "Last month repeated", "RWD": "Random walk + drift",
              "AutoETS": "AutoETS", "AutoTheta": "AutoTheta", "Drivers": "Driver-based",
-             "Prophet": "Prophet", "LagRegression": "Customer-momentum regression"}
+             "Prophet": "Prophet (daily)", "LagRegression": "Customer-momentum regression",
+             "ProphetKPI": "Prophet + forecast KPIs", "ProphetLead": "Prophet + leading indicators"}
     tbl = pd.DataFrame({
         "Model": [short[m] for m in chk.index],
         "Role": ["Plan model" if m == fsum["selected_model"] else
@@ -607,12 +649,202 @@ from, so nothing is learned from the answer.
 - **The flat 3-month average** (the model behind this plan) was {chk.loc['WindowAverage', 'check_total_error']:+.0%} out,
   and it wins the backtest on all the data ({bt_avg['WindowAverage']:.1%} error).
 - **Richer models did not help:** the driver-based model ({bt_avg['Drivers']:.1%}), a regression on customer
-  momentum ({bt_avg['LagRegression']:.1%}) and **Prophet** with weekly and yearly seasonality and Black Friday learned
-  from daily data ({bt_avg['Prophet']:.0%}). With under two years of history Prophet's yearly pattern is unstable; it
-  becomes the right tool once 2+ years of data exist.
+  momentum ({bt_avg['LagRegression']:.1%}), **Prophet with forecast KPIs** as regressors ({bt_avg['ProphetKPI']:.1%}: it
+  mostly rebuilds customers x orders x AOV, so it is only as good as those KPI forecasts), **Prophet with leading
+  indicators** lagged 2 months ({bt_avg['ProphetLead']:.1%}) and **Prophet** with weekly and yearly seasonality learned
+  from daily data ({bt_avg['Prophet']:.0%}; with under two years of history the yearly pattern is unstable).
+- **Leading indicators were the closest call:** late deliveries jumped to 14-19% in Feb-Mar 2018, and as of June the
+  leading-indicator model had the best backtest of all. It still missed the July turning point.
 - **The warning sign was in the KPIs:** customer numbers were already falling in 4 of 5 markets by
   {cfg.month_label(cfg.CHECK_END)}. That is why the plan comes with customer-based triggers (see the decision memo).
 """)
+
+# ------------------------------------------------------------------ history
+@st.cache_data
+def history_tables():
+    """Monthly history for every metric, per market and the Total, over the modelling window."""
+    tot = pd.read_csv(P / "monthly_total.csv").assign(market="Total")
+    mk = pd.read_csv(P / "monthly_market.csv")
+    h = pd.concat([mk, tot], ignore_index=True)
+    h = h[h["in_model_window"]].copy()
+    h["items_per_order"] = h["items"] / h["orders"]
+    h["price_per_item"] = h["revenue"] / h["items"]
+    ind = pd.read_csv(P / "monthly_indicators.csv")
+    h = h.merge(ind, on=["month", "market"], how="left")
+    cat = pd.read_csv(P / "monthly_category.csv")
+    cat = cat[cat["in_model_window"]]
+    return h, cat
+
+
+# metric -> (label, kind): kind "money" follows the currency switch, "pct" is shown as %, "num" as is
+METRICS = {
+    "revenue": ("Revenue (item price, delivered orders)", "money"),
+    "gmv": ("GMV (revenue + freight)", "money"),
+    "orders": ("Orders", "num"),
+    "customers": ("Customers (unique buyers)", "num"),
+    "orders_per_customer": ("Orders per customer", "num"),
+    "aov": ("Average order value (AOV)", "money"),
+    "items_per_order": ("Items per order (basket size)", "num"),
+    "price_per_item": ("Price per item", "money"),
+    "late_share": ("Late deliveries (share of delivered orders)", "pct"),
+    "cancel_rate": ("Cancellations (share of all orders)", "pct"),
+    "new_share": ("New customers (share of buyers)", "pct"),
+}
+
+with tab_hist:
+    st.subheader("History: the data behind every graph")
+    md(f"Monthly history for {HIST_LABEL}, by market. Pick a metric and the markets to compare; the chart, the "
+       "table and the download all follow your choice. Money amounts follow the R$ / € switch.")
+    hdat, cdat = history_tables()
+    h1, h2 = st.columns([2, 3])
+    metric = h1.selectbox("Metric", list(METRICS), format_func=lambda k: METRICS[k][0], key="hist_metric")
+    hm = h2.multiselect("Markets", ["Total"] + cfg.MARKETS, default=["Total"], key="hist_markets")
+    label, kind = METRICS[metric]
+    if not hm:
+        st.warning("Pick at least one market.")
+    else:
+        piv = hdat.pivot(index="month", columns="market", values=metric)[hm]
+        scale = FX if kind == "money" else (100 if kind == "pct" else 1)
+        shown = piv * scale
+        fh = go.Figure()
+        for mk_ in hm:
+            fh.add_scatter(x=shown.index, y=shown[mk_], name=mk_, mode="lines+markers",
+                           line=dict(color="#0b0b0b" if mk_ == "Total" else MKT_COLOR[mk_], width=2.2),
+                           marker=dict(size=5),
+                           hovertemplate=(f"%{{x}}<br>{mk_}: " + (f"{SYM} %{{y:,.0f}}" if kind == "money" else
+                                                                 "%{y:.1f}%" if kind == "pct" else "%{y:,.3f}")
+                                          + "<extra></extra>"))
+        fh.add_vline(x="2017-11", line=dict(color=LIGHT, dash="dot", width=1))
+        fh.add_annotation(x="2017-11", y=1, yref="paper", text="Black Friday", showarrow=False,
+                          font=dict(size=10, color=MUTED), yanchor="bottom")
+        yax = cur_axis(rangemode="tozero") if kind == "money" else dict(
+            gridcolor=GRID, ticksuffix="%" if kind == "pct" else "", rangemode="tozero")
+        fh.update_layout(height=380, margin=dict(l=10, r=10, t=60, b=10), plot_bgcolor="white",
+                         title=dict(text=f"{label}, monthly", y=0.97, x=0, xanchor="left"),
+                         legend=dict(orientation="h", y=1.02, yanchor="bottom", x=0.5),
+                         yaxis=yax, xaxis=dict(type="category", tickvals=list(shown.index)[::3]),
+                         hovermode="x unified")
+        st.plotly_chart(fh, use_container_width=True)
+        unit = f" ({SYM})" if kind == "money" else (" (%)" if kind == "pct" else "")
+        fmt = "{:,.0f}" if kind == "money" or metric in ("orders", "customers") else (
+            "{:.1f}" if kind == "pct" else "{:.3f}")
+        st.dataframe(shown.rename(columns=lambda c: c + unit).style.format(fmt), use_container_width=True, height=300)
+        st.download_button(f"Download this table (CSV)", shown.round(4).to_csv(), f"history_{metric}.csv", "text/csv",
+                           key="dl_hist")
+
+    st.markdown("**Categories**")
+    top = (cdat.groupby("category")["revenue"].sum().sort_values(ascending=False).index.tolist())
+    hc = st.multiselect("Categories", top, default=top[1:4], key="hist_categories",
+                        help=f"Top {cfg.TOP_N_CATEGORIES} categories by revenue; everything else is 'Other'.")
+    if hc:
+        cp = cdat.pivot(index="month", columns="category", values="revenue")[hc] * FX
+        fc_ = go.Figure()
+        for i, c in enumerate(hc):
+            fc_.add_scatter(x=cp.index, y=cp[c], name=c.replace("_", " "), mode="lines",
+                            line=dict(width=2, color=["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4",
+                                                      "#008300", "#6250d6", "#e34948"][i % 8]),
+                            hovertemplate=f"%{{x}}<br>{c}: {SYM} %{{y:,.0f}}<extra></extra>")
+        fc_.update_layout(height=320, margin=dict(l=10, r=10, t=50, b=10), plot_bgcolor="white",
+                          title=dict(text="Monthly revenue by category", y=0.97, x=0, xanchor="left"),
+                          legend=dict(orientation="h", y=1.02, yanchor="bottom", x=0.4),
+                          yaxis=cur_axis(rangemode="tozero"),
+                          xaxis=dict(type="category", tickvals=list(cp.index)[::3]), hovermode="x unified")
+        st.plotly_chart(fc_, use_container_width=True)
+        st.download_button("Download category history (CSV)", cp.round(2).to_csv(), "history_categories.csv",
+                           "text/csv", key="dl_cat")
+
+# ------------------------------------------------------------------ data
+DATA_TABLES = {
+    "monthly_total.csv": "Monthly revenue, GMV, orders, customers, items and AOV for the whole marketplace",
+    "monthly_market.csv": "The same, per market (SP, RJ, MG, South, Rest of Brazil)",
+    "monthly_category.csv": f"The same, per product category (top {cfg.TOP_N_CATEGORIES} + Other)",
+    "monthly_market_category.csv": "The same, per market and category",
+    "monthly_indicators.csv": "Late deliveries, cancellations and new-customer share, per market and month",
+    "daily_market.csv": "Daily revenue per market (used by the daily Prophet model)",
+    "state_summary.csv": "Revenue, orders, customers and growth per state (used by the map)",
+    "order_status_by_month.csv": "Orders by status (delivered, canceled, shipped...) per month",
+    "order_outliers.csv": "Very large orders (top 0.1%), checked and kept",
+    "driver_tree_market.csv": "Customers, orders per customer, AOV, basket size and price per item, per market",
+    "driver_decomposition.csv": "How much each driver contributed to revenue growth (LMDI split)",
+    "driver_baseline.csv": "Starting values for the scenarios (last 3 months of data)",
+    "backtest_scores.csv": "Error of every forecasting model, per series",
+    "forecast.csv": "The forecast for the plan months, with 80% range and Black Friday",
+    "forecast_check.csv": "The June 2018 real-world check of every model",
+    "scenario_summary.csv": "Plan totals per scenario, market and quarter",
+    "market_scorecard.csv": "Size, momentum and order value per market",
+    "category_scorecard.csv": "Size and momentum per category",
+}
+
+with tab_data:
+    st.subheader("The data")
+    md(f"""
+**Source:** the [Olist Brazilian E-Commerce Public Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)
+(CC BY-NC-SA 4.0): real, anonymised orders from
+Olist, a Brazilian marketplace where many independent sellers list products. It covers **Sep 2016 to Oct 2018**;
+this project uses **{HIST_LABEL}** ({cfg.HISTORY_MONTHS} months, the months with stable volume).
+""")
+    st.markdown("**Raw files**")
+    raw = pd.DataFrame([
+        ("Orders", "olist_orders_dataset.csv", dq["raw_rows"]["orders"],
+         "One row per order: status, purchase / delivery / promised dates", "Revenue month, delivered filter, late deliveries, cancellations"),
+        ("Order items", "olist_order_items_dataset.csv", dq["raw_rows"]["items"],
+         "One row per item: product, seller, price, freight", "Revenue (price), GMV (price + freight), basket size"),
+        ("Customers", "olist_customers_dataset.csv", dq["raw_rows"]["customers"],
+         "Customer id, unique person id, city, state", "Markets and the map; unique customers"),
+        ("Products", "olist_products_dataset.csv", dq["raw_rows"]["products"],
+         "Product category (Portuguese), size, weight", "Categories"),
+        ("Category names", "product_category_name_translation.csv", dq["raw_rows"]["translation"],
+         "Portuguese → English category names", "Readable categories"),
+        ("Payments", "olist_order_payments_dataset.csv", dq["raw_rows"]["payments"],
+         "Payment type, instalments, amount", "Only a cross-check of revenue"),
+    ], columns=["Table", "File", "Rows", "Contains", "Used for"]).set_index("Table")
+    st.dataframe(raw.style.format({"Rows": "{:,}"}), use_container_width=True)
+    st.caption("Not used: geolocation (zip-code coordinates), sellers and customer reviews. They are part of the "
+               "dataset but not needed for revenue planning; reviews could be added later as a leading indicator.")
+
+    st.markdown("**How the data was cleaned**")
+    status = pd.Series(dq["order_status_counts"])
+    md(f"""
+- **Only delivered orders count as revenue.** {status['delivered']:,} delivered; {dq['orders_excluded_not_delivered']:,}
+  others excluded ({', '.join(f'{k} {v:,}' for k, v in status.drop('delivered').items())}).
+- **Revenue = item price**; freight is a delivery charge, so it is reported separately as GMV.
+- **No duplicates:** {dq['duplicate_order_ids']} duplicate orders, {dq['duplicate_item_keys']} duplicate items.
+- **Missing categories:** {dq['products_missing_category']} products have none; they are grouped as "unknown" inside "Other".
+- **Very large orders** (top 0.1%) were checked: genuine big baskets, so they are kept.
+- **Sparse months dropped:** 2016 ({dq['delivered_orders_before_model_window']} delivered orders) and Sep-Oct 2018 (none delivered yet).
+- **A customer** is Olist's `customer_unique_id`: a person buying twice counts once.
+- **Every step is tested:** e.g. revenue in the monthly tables adds back exactly to the raw items.
+""")
+
+    st.markdown("**Tables the app uses** (built by `python -m src.run_all`)")
+    pick = st.selectbox("Preview a table", list(DATA_TABLES), key="data_table",
+                        format_func=lambda f: f"{f}: {DATA_TABLES[f]}")
+    tdf = pd.read_csv(P / pick)
+    st.caption(f"{len(tdf):,} rows × {tdf.shape[1]} columns. Amounts in R$.")
+    st.dataframe(tdf.head(200), use_container_width=True, height=280)
+    st.download_button(f"Download {pick}", (P / pick).read_bytes(), pick, "text/csv", key="dl_data")
+
+    st.markdown("**Glossary**")
+    gl = pd.DataFrame([
+        ("Revenue", "Sum of item prices on delivered orders, by purchase month (freight excluded)."),
+        ("GMV", "Gross merchandise value: revenue + freight."),
+        ("Customers", "Unique buyers in the month (customer_unique_id)."),
+        ("Orders per customer", "Orders ÷ customers in the month (about 1.007: almost everyone orders once)."),
+        ("AOV", "Average order value: revenue ÷ orders. AOV = items per order × price per item."),
+        ("Items per order", "Basket size: items ÷ orders."),
+        ("Price per item", "Revenue ÷ items."),
+        ("Market", "Customer location: SP, RJ, MG on their own, South (PR, SC, RS), Rest of Brazil (21 states)."),
+        ("Late delivery", "Delivered after the date promised at purchase."),
+        ("New customer", "A buyer whose first ever delivered order is in that month."),
+        ("H2 2018 / Q3 / Q4", f"Jul–Dec 2018; Q3 = Jul–Sep, Q4 = Oct–Dec. {ACT_LABEL} are actuals, {FC_LABEL} forecast."),
+        ("Backtest", "Pretend to be at an earlier date, forecast, and compare with what really happened."),
+        ("WAPE", "Weighted absolute percentage error: total |forecast − actual| ÷ total actual."),
+        ("LMDI", "A method that splits revenue growth exactly between its drivers."),
+        ("Elasticity", "% of customers lost for each 1% price rise (an assumption in the What-if tab)."),
+        ("Black Friday uplift", f"November vs the average of October and December 2017: ×{uplift:.2f}."),
+        ("Constant currency", f"Euro amounts use one rate (R$ {cfg.BRL_PER_EUR} = €1) so growth is not distorted."),
+    ], columns=["Term", "Meaning"]).set_index("Term")
+    st.dataframe(gl, use_container_width=True, height=420)
 
 with tab_about:
     wape = scores.groupby("model")["wape"].mean().sort_values()
@@ -635,9 +867,9 @@ with tab_about:
    reconcile revenue back to the raw items.
 2. **Driver tree** (`src/drivers.py`): revenue = customers x orders per customer x items per order x price per
    item, by market and month. Growth is split exactly between the drivers (LMDI method).
-3. **Forecast** (`src/forecast.py`): eight models backtested from 4 starting points, {cfg.FORECAST_H} months ahead each:
-   five that look at revenue alone, a driver-based model, a regression on customer momentum and Prophet on daily
-   data. See the **Forecast check** tab.
+3. **Forecast** (`src/forecast.py`): {N_MODELS} models backtested from 4 starting points, {cfg.FORECAST_H} months ahead each:
+   five that look at revenue alone, a driver-based model, a regression on customer momentum, Prophet on daily data,
+   Prophet with forecast KPIs and Prophet with lagged leading indicators. See the **Forecast check** tab.
    Average error (WAPE) across the total and 5 markets: """ + ", ".join(
         f"{names[m]} {v:.1%}" for m, v in wape.items()) + f""". The **3-month average** wins, so the
    baseline is flat; trend models over-forecast because they carry 2017's growth into 2018.

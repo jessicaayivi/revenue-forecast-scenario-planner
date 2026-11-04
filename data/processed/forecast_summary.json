@@ -6,6 +6,8 @@
     "LagRegression": 0.1654,
     "RWD": 0.2032,
     "Drivers": 0.2157,
+    "ProphetKPI": 0.2161,
+    "ProphetLead": 0.217,
     "AutoETS": 0.2199,
     "AutoTheta": 0.2212,
     "Prophet": 0.974
@@ -17,6 +19,8 @@
     "RWD": 0.1786,
     "Drivers": 0.1811,
     "AutoTheta": 0.1841,
+    "ProphetLead": 0.2107,
+    "ProphetKPI": 0.215,
     "AutoETS": 0.2287,
     "Prophet": 0.7501
   },
@@ -27,6 +31,8 @@
     "RWD": 0.1637,
     "Drivers": 0.1811,
     "AutoTheta": 0.1841,
+    "ProphetLead": 0.2084,
+    "ProphetKPI": 0.215,
     "AutoETS": 0.2287,
     "Prophet": 0.5822
   },
@@ -50,8 +56,8 @@
       "2018-07",
       "2018-08"
     ],
-    "selected_by_backtest": "AutoTheta",
-    "selected_check_total_error": 0.2866,
+    "selected_by_backtest": "ProphetLead",
+    "selected_check_total_error": 0.2163,
     "best_on_check": "Naive",
     "check_actual_total": 1706530.1
   }

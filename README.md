@@ -39,19 +39,22 @@ market. Every trend model I backtested carried 2017's growth forward and over-fo
 
 ![Backtest paths](docs/images/03_backtest_paths.png)
 
-**3. A flat forecast was the most accurate, out of eight models.** I tested five revenue-only models, a
-driver-based model (customers × orders per customer × AOV), a regression on customer momentum and Prophet
-(daily data, weekly and yearly seasonality, Black Friday). The 3-month average had the lowest backtest error
-(10.4% WAPE across the total and 5 markets), so it is the baseline. Prophet was the least stable: with under two
-years of history its yearly pattern cannot be learned reliably. Growth is added through explicit, named scenarios
-rather than hidden inside a trend line.
+**3. A flat forecast was the most accurate, out of ten models.** I tested five revenue-only models, a
+driver-based model (customers × orders per customer × AOV), a regression on customer momentum, Prophet on daily
+data (weekly and yearly seasonality, Black Friday), Prophet with forecast KPIs as regressors and Prophet with
+leading indicators (late deliveries, cancellations, new-customer share, lagged 2 months). The 3-month average had
+the lowest backtest error (10.4% WAPE across the total and 5 markets), so it is the baseline. Prophet with KPI
+regressors mostly rebuilds customers × orders × AOV, so it is only as good as those KPI forecasts; Prophet's yearly
+pattern was unstable with under two years of history. Growth is added through explicit, named scenarios rather
+than hidden inside a trend line.
 
 ![Baseline forecast](docs/images/03_forecast.png)
 
 **4. Would it have worked? A real-world check.** Planning as if it were the end of June 2018, the backtest
-would have picked AutoTheta, which then forecast Jul–Aug +29% too high: revenue stopped growing in July, a turning
-point no model saw coming. The warning sign was in the KPIs: customer numbers were already falling in 4 of 5
-markets. That is why the plan is flat and comes with customer-based triggers.
+would have picked Prophet with leading indicators, which then forecast Jul–Aug +22% too high: revenue stopped
+growing in July, a turning point no model saw coming. Late deliveries had spiked to 14–19% in Feb–Mar 2018 and
+customer numbers were already falling in 4 of 5 markets, but not clearly enough for any model to act on. That is
+why the plan is flat and comes with customer-based triggers.
 
 ![Forecast check](docs/images/03_forecast_check.png)
 
@@ -64,7 +67,9 @@ order values; RJ shrank.
 
 An interactive Streamlit app. A **Start here** tab explains the question, the time frame (history Jan 2017 –
 Aug 2018, plan H2 2018 = Jul–Aug actual + Sep–Dec forecast), a map of the five markets across Brazil and how to
-use the app; a **Forecast check** tab compares the eight models; a **Method & data** tab documents every step. Amounts can be shown in R$ or € (constant ECB 2018 average,
+use the app; a **Forecast check** tab compares the ten models; a **History** tab charts every metric (revenue,
+customers, AOV, late deliveries...) by market and category with downloadable tables; a **Data** tab explains the
+source files, the cleaning and every term; a **Method** tab documents every step. Amounts can be shown in R$ or € (constant ECB 2018 average,
 R$ 4.3085 = €1). Pick a preset, adjust customer and order-value growth per market, toggle the Black
 Friday uplift, and see the plan by quarter and market. The **What-if** tab tests a single hypothesis, such as
 "+10% customers in SP from October" or "+5% items per order": it shows the revenue impact by quarter and market,
@@ -79,7 +84,7 @@ respond with an elasticity you choose, and shows the break-even point. It uses t
 |---|---|---|
 | 1. Clean | Join orders, items, customers and products; delivered orders only; data-quality report | `src/prepare.py`, `notebooks/01_exploration.ipynb` |
 | 2. Drivers | Revenue = customers × orders per customer × AOV per market, with an exact (LMDI) split of growth by driver | `src/drivers.py`, `notebooks/02_drivers.ipynb` |
-| 3. Forecast | 8 models (incl. driver-based, KPI regression, Prophet) backtested from 4 starting points; best chosen by error across total and markets; real-world check planning from June 2018 | `src/forecast.py`, `notebooks/03_forecast.ipynb` |
+| 3. Forecast | 10 models (incl. driver-based, KPI regression, Prophet with and without regressors) backtested from 4 starting points; best chosen by error across total and markets; real-world check planning from June 2018 | `src/forecast.py`, `notebooks/03_forecast.ipynb` |
 | 4. Scenarios | Downside / base / upside from observed growth rates; revenue sensitivity by market; category scorecard | `src/scenarios.py`, `notebooks/04_scenarios.ipynb`, `app/` |
 | 5. Memo | Decision memo generated from the outputs, with checks that each claim still holds | `src/memo.py`, `docs/decision_memo.md` |
 
@@ -92,7 +97,7 @@ respond with an elasticity you choose, and shows the break-even point. It uses t
   (×1.44, from one November) is a labelled assumption, kept separate so it can be switched off.
 - **Regressing revenue on its own components doesn't forecast.** Revenue = customers × orders per customer × AOV
   exactly, so a regression on them fits perfectly but needs next month's KPIs to predict next month. The honest
-  version uses lagged KPIs (customer momentum), which is one of the eight models tested.
+  version uses lagged KPIs (customer momentum) or KPI forecasts from other models as regressors; both are among the ten models tested.
 - **Model designs fixed before the check.** The richer models were specified before seeing how they did on
   Jul–Aug 2018, and none was tuned afterwards.
 - **Model chosen across markets, not just the total.** On total revenue alone the two best models were tied;

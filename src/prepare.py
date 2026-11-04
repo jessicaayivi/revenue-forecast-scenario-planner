@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 
+import numpy as np
 import pandas as pd
 
 from src import config as cfg
@@ -105,6 +106,42 @@ def daily_market(li: pd.DataFrame) -> pd.DataFrame:
     out = g.rename_axis("date").reset_index().melt(id_vars="date", var_name="market", value_name="revenue")
     out["date"] = out["date"].dt.strftime("%Y-%m-%d")
     return out
+
+
+def monthly_indicators(t: dict[str, pd.DataFrame], li: pd.DataFrame) -> pd.DataFrame:
+    """Candidate leading indicators per purchase month, for each market and the Total.
+
+    - cancel_rate: share of all orders that were canceled or unavailable
+    - late_share: share of delivered orders that arrived after the promised (estimated) date
+    - new_share: share of the month's customers buying for the first time (first delivered order ever)
+
+    Note: an order's lateness is only known once it is delivered (typically 1-4 weeks after purchase),
+    so models must use these with a lag.
+    """
+    o = t["orders"].merge(t["customers"][["customer_id", "customer_state"]], on="customer_id", how="left")
+    o["month"] = o["order_purchase_timestamp"].dt.to_period("M")
+    o["market"] = o["customer_state"].map(cfg.state_to_market)
+    o["cancelled"] = o["order_status"].isin(["canceled", "unavailable"])
+    deliv = o["order_status"] == cfg.KEEP_STATUS
+    late = (pd.to_datetime(o["order_delivered_customer_date"]).dt.normalize()
+            > pd.to_datetime(o["order_estimated_delivery_date"]).dt.normalize())
+    o["late"] = np.where(deliv, late, np.nan)
+
+    first = li.groupby("customer_unique_id")["month"].min()
+    cm = li[["month", "market", "customer_unique_id"]].drop_duplicates()
+    cm["new"] = cm["month"] == cm["customer_unique_id"].map(first)
+
+    def rates(oo, cc, keys):
+        a = oo.groupby(keys).agg(cancel_rate=("cancelled", "mean"), late_share=("late", "mean"))
+        b = cc.groupby(keys).agg(new_share=("new", "mean"))
+        return a.join(b, how="inner").reset_index()
+
+    mk = rates(o, cm, ["month", "market"])
+    tot = rates(o, cm, ["month"]).assign(market="Total")
+    out = pd.concat([mk, tot], ignore_index=True)
+    out = out[in_model_window(out["month"])].copy()
+    out["month"] = out["month"].astype(str)
+    return out.sort_values(["market", "month"]).reset_index(drop=True)
 
 
 def state_summary(li: pd.DataFrame) -> pd.DataFrame:
@@ -225,6 +262,7 @@ def main() -> dict:
     status_summary(t["orders"]).to_csv(out / "order_status_by_month.csv", index=False)
     state_summary(li).round(4).to_csv(out / "state_summary.csv", index=False)
     daily_market(li).round(2).to_csv(out / "daily_market.csv", index=False)
+    monthly_indicators(t, li).round(4).to_csv(out / "monthly_indicators.csv", index=False)
     order_outliers(li).to_csv(out / "order_outliers.csv", index=False)
 
     report = quality_report(t, li, top)

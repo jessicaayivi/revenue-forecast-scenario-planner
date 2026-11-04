@@ -6,6 +6,8 @@ import pytest
 from src import config as cfg, memo
 
 README = (cfg.ROOT / "README.md").read_text(encoding="utf-8")
+READABLE = {"AutoTheta": "AutoTheta", "ProphetLead": "Prophet with leading indicators", "ProphetKPI": "Prophet with forecast KPIs",
+            "Drivers": "the driver-based model", "LagRegression": "the customer-momentum regression"}
 
 
 @pytest.fixture(scope="module")
@@ -26,7 +28,7 @@ def expected(d) -> list[str]:
         f"R$ {b['plan_q2']/1e6:.2f}M in Q4",
         f"flat on {cfg.PREV_HALF_NAME} ({b['six_months'] / d['prev_half'] - 1:+.1%})",
         f"{b['six_months'] / d['last_year_half'] - 1:+.0%} on {cfg.LAST_YEAR_HALF_NAME}",
-        f"picked {fs['check']['selected_by_backtest']}",
+        f"picked {READABLE[fs['check']['selected_by_backtest']]}",
         f"Jul–Aug {fs['check']['selected_check_total_error']:+.0%} too high",
         f"downside of R$ {dn['six_months']/1e6:.2f}M",
         f"fell {-base.loc['Total', 'customers_growth_vs_prior']:.0%} in Jun–Aug",

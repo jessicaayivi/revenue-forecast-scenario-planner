@@ -79,9 +79,9 @@ def test_selected_model_has_lowest_average_wape(summary):
     assert s.loc[s["selected"], "model"].unique().tolist() == [summary["selected_model"]]
 
 
-def test_all_eight_models_scored(cv):
+def test_all_models_scored(cv):
     assert set(forecast.MODELS) <= set(cv.columns)
-    assert len(forecast.MODELS) == 8
+    assert len(forecast.MODELS) == 10
     assert cv[forecast.MODELS].notna().all().all()
 
 
@@ -95,6 +95,15 @@ def test_new_models_use_no_future_data():
     cv = forecast.backtest(end=cfg.MODEL_END, h=2, n_windows=6)
     b = cv[cv["cutoff"] == pd.Timestamp(c + "-01")].set_index(["unique_id", "ds"])["Drivers"]
     assert b.loc[a.index].to_numpy() == pytest.approx(a.to_numpy(), rel=1e-6)
+
+
+def test_prophet_regressor_models_use_no_future_data():
+    # same cutoff, with and without the later months in the data: identical forecasts
+    c = "2018-04"
+    full = forecast.prophet_regressor_forecasts([c], 2, cfg.MODEL_END).set_index(["unique_id", "ds"])
+    cut = forecast.prophet_regressor_forecasts([c], 2, c).set_index(["unique_id", "ds"])
+    for m in ("ProphetKPI", "ProphetLead"):
+        assert full.loc[cut.index, m].to_numpy() == pytest.approx(cut[m].to_numpy(), rel=1e-6)
 
 
 def test_forecast_check_is_out_of_sample(summary):

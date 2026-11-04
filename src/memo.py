@@ -15,6 +15,11 @@ import pandas as pd
 from src import config as cfg
 
 P = cfg.PROCESSED_DIR
+NAMES = {"WindowAverage": "the 3-month average", "Naive": "last month repeated", "RWD": "random walk with drift",
+         "AutoETS": "AutoETS", "AutoTheta": "AutoTheta", "Drivers": "the driver-based model",
+         "Prophet": "Prophet (daily, seasonal)", "LagRegression": "the customer-momentum regression",
+         "ProphetKPI": "Prophet with forecast KPIs",
+         "ProphetLead": "Prophet with leading indicators (late deliveries, cancellations, new customers)"}
 OUT = cfg.ROOT / "docs" / "decision_memo.md"
 
 
@@ -78,7 +83,8 @@ def check_claims(d: dict) -> None:
         "cool_stuff and computers_accessories declined": (cats.loc[["cool_stuff", "computers_accessories"], "revenue_growth_last6m"] < 0).all(),
         "flat model selected": d["fs"]["selected_model"] == "WindowAverage",
         "no richer model beat the flat one in the backtest": (
-            avg["WindowAverage"] <= avg[["Drivers", "Prophet", "LagRegression"]].min()),
+            avg["WindowAverage"] <= avg[["Drivers", "Prophet", "LagRegression", "ProphetKPI", "ProphetLead"]].min()),
+        "the June pick was a richer model, not the flat one": d["fs"]["check"]["selected_by_backtest"] != "WindowAverage",
         "the model picked as of June over-forecast the check months": d["fs"]["check"]["selected_check_total_error"] > 0.10,
         "Prophet was unstable in the backtest": d["scores"].groupby("model")["wape"].mean()["Prophet"] > 0.5,
     }
@@ -175,11 +181,13 @@ For reference, {prev} was {_m(d['prev_half'])} and {ly} {_m(d['last_year_half'])
 - **The growth has stalled.** Monthly customers in {cfg.BASELINE_LABEL} were {_p(base.loc['Total', 'customers_growth_vs_prior'])}
   vs {cfg.PRIOR3_LABEL}, and down in every market. A plan that extends 2017's growth would be wrong: in the backtest, the
   trend models over-forecast by {_p(trend_bias.min())} to {_p(trend_bias.max())}.
-- **A flat forecast is the most accurate one we tested**, including the richer models. The 3-month average had the
-  lowest average error (WAPE {wa['WindowAverage']:.1%} across the total and 5 markets). A regression on customer momentum
-  ({wa['LagRegression']:.1%}), a driver-based model ({wa['Drivers']:.1%}) and Prophet with seasonality and Black Friday
-  learned from daily data ({wa['Prophet']:.0%}, unstable with under two years of history) all did worse.
-- **Planning from {cfg.month_label(cfg.CHECK_END)}, the backtest would have picked {picked}**, and it over-forecast
+- **A flat forecast is the most accurate of the {len(wa)} we tested**, including the richer models. The 3-month average had
+  the lowest average error (WAPE {wa['WindowAverage']:.1%} across the total and 5 markets). All of these did worse: a
+  regression on customer momentum ({wa['LagRegression']:.1%}), a driver-based model ({wa['Drivers']:.1%}), Prophet using
+  forecast KPIs as regressors ({wa['ProphetKPI']:.1%}), Prophet using lagged leading indicators such as late deliveries
+  ({wa['ProphetLead']:.1%}) and Prophet with seasonality learned from daily data ({wa['Prophet']:.0%}, unstable with under
+  two years of history).
+- **Planning from {cfg.month_label(cfg.CHECK_END)}, the backtest would have picked {NAMES[picked]}**, and it over-forecast
   {cfg.CHECK_LABEL} by {_p(chk.loc[picked, 'check_total_error'])}: growth stopped in July, a turning point no model saw
   coming. The flat 3-month average was {_p(chk.loc['WindowAverage', 'check_total_error'])} out. This is why the plan is flat and
   why it comes with explicit triggers.

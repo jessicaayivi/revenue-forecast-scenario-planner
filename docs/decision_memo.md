@@ -59,12 +59,14 @@ For reference, H1 2018 was R$ 5.51M and H2 2017 R$ 4.01M.
 - **The growth has stalled.** Monthly customers in Jun–Aug 2018 were -9%
   vs Mar–May 2018, and down in every market. A plan that extends 2017's growth would be wrong: in the backtest, the
   trend models over-forecast by +16% to +23%.
-- **A flat forecast is the most accurate one we tested**, including the richer models. The 3-month average had the
-  lowest average error (WAPE 10.4% across the total and 5 markets). A regression on customer momentum
-  (16.5%), a driver-based model (21.6%) and Prophet with seasonality and Black Friday
-  learned from daily data (97%, unstable with under two years of history) all did worse.
-- **Planning from Jun 2018, the backtest would have picked AutoTheta**, and it over-forecast
-  Jul–Aug 2018 by +29%: growth stopped in July, a turning point no model saw
+- **A flat forecast is the most accurate of the 10 we tested**, including the richer models. The 3-month average had
+  the lowest average error (WAPE 10.4% across the total and 5 markets). All of these did worse: a
+  regression on customer momentum (16.5%), a driver-based model (21.6%), Prophet using
+  forecast KPIs as regressors (21.6%), Prophet using lagged leading indicators such as late deliveries
+  (21.7%) and Prophet with seasonality learned from daily data (97%, unstable with under
+  two years of history).
+- **Planning from Jun 2018, the backtest would have picked Prophet with leading indicators (late deliveries, cancellations, new customers)**, and it over-forecast
+  Jul–Aug 2018 by +22%: growth stopped in July, a turning point no model saw
   coming. The flat 3-month average was +10% out. This is why the plan is flat and
   why it comes with explicit triggers.
 - **SP is where size and momentum meet.** 41% of revenue and
