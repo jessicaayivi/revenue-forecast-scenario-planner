@@ -5,7 +5,7 @@
 **Business question:** What revenue should we plan for the next 2 quarters, and which markets or
 categories should get extra growth investment?
 
-Work in progress. The full case study comes in Stage 6.
+**Answer:** see the [decision memo](docs/decision_memo.md). Work in progress; the full case study comes in Stage 6.
 
 ## Run it
 
