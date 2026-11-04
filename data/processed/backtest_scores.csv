@@ -1,0 +1,31 @@
+unique_id,model,wape,bias,mape,selected
+MG,Naive,0.1414,0.0484,0.1441,False
+MG,WindowAverage,0.082,-0.0256,0.082,True
+MG,RWD,0.3439,0.3268,0.3535,False
+MG,AutoETS,0.2706,0.2664,0.2821,False
+MG,AutoTheta,0.349,0.3454,0.36,False
+RJ,Naive,0.1304,0.0875,0.1319,False
+RJ,WindowAverage,0.0827,0.0472,0.0878,True
+RJ,RWD,0.392,0.392,0.4007,False
+RJ,AutoETS,0.4809,0.4809,0.4878,False
+RJ,AutoTheta,0.3811,0.3811,0.3948,False
+Rest of Brazil,Naive,0.1444,-0.0429,0.1461,False
+Rest of Brazil,WindowAverage,0.105,-0.0788,0.1022,True
+Rest of Brazil,RWD,0.2495,0.217,0.2604,False
+Rest of Brazil,AutoETS,0.248,0.248,0.2592,False
+Rest of Brazil,AutoTheta,0.2268,0.2268,0.2379,False
+SP,Naive,0.1662,-0.1081,0.1642,False
+SP,WindowAverage,0.1918,-0.1842,0.1825,True
+SP,RWD,0.2081,0.133,0.2166,False
+SP,AutoETS,0.1384,0.1257,0.1492,False
+SP,AutoTheta,0.1142,0.0723,0.1227,False
+South,Naive,0.1582,-0.0751,0.1568,False
+South,WindowAverage,0.1561,-0.1436,0.1455,True
+South,RWD,0.2504,0.1586,0.2627,False
+South,AutoETS,0.1768,0.1543,0.1923,False
+South,AutoTheta,0.1664,0.1242,0.1792,False
+Total,Naive,0.1175,-0.047,0.1191,False
+Total,WindowAverage,0.1188,-0.1088,0.1148,True
+Total,RWD,0.24,0.2092,0.2455,False
+Total,AutoETS,0.2837,0.2834,0.2899,False
+Total,AutoTheta,0.1821,0.1784,0.1876,False

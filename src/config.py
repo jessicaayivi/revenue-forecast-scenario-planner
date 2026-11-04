@@ -52,3 +52,12 @@ COMPARISONS = [
 
 # Baseline drivers for scenarios: average of the last N months of the modelling window.
 BASELINE_MONTHS = 3
+
+# Forecast: next 2 quarters after the modelling window (Sep 2018 - Feb 2019).
+FORECAST_H = 6
+# Rolling-origin backtest: 6-month horizon, origin moved 1 month at a time.
+BACKTEST_WINDOWS = 4
+INTERVAL_LEVEL = 0.80
+# Black Friday: one November in the data, so the uplift is a labelled judgement, not a learned effect.
+# Uplift = Nov 2017 revenue / average of Oct and Dec 2017.
+BLACK_FRIDAY_MONTH = 11

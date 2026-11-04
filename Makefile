@@ -8,7 +8,7 @@ data:
 	$(PYTHON) -m src.run_all
 
 notebook:
-	$(PYTHON) -m nbconvert --to notebook --execute --inplace notebooks/01_exploration.ipynb notebooks/02_drivers.ipynb
+	$(PYTHON) -m nbconvert --to notebook --execute --inplace notebooks/01_exploration.ipynb notebooks/02_drivers.ipynb notebooks/03_forecast.ipynb
 
 test:
 	$(PYTHON) -m pytest -q

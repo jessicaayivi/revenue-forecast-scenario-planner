@@ -1,0 +1,38 @@
+{
+  "selected_model": "WindowAverage",
+  "backtest_avg_wape": {
+    "WindowAverage": 0.1227,
+    "Naive": 0.143,
+    "AutoTheta": 0.2366,
+    "AutoETS": 0.2664,
+    "RWD": 0.2807
+  },
+  "backtest_total_wape": {
+    "Naive": 0.1175,
+    "WindowAverage": 0.1188,
+    "AutoTheta": 0.1821,
+    "RWD": 0.24,
+    "AutoETS": 0.2837
+  },
+  "backtest_total_bias": {
+    "Naive": -0.047,
+    "WindowAverage": -0.1088,
+    "AutoTheta": 0.1784,
+    "RWD": 0.2092,
+    "AutoETS": 0.2834
+  },
+  "bottom_up": {
+    "wape": 0.1188,
+    "bias": -0.1088
+  },
+  "black_friday_uplift": 1.4375,
+  "forecast_months": [
+    "2018-09",
+    "2019-02"
+  ],
+  "forecast_total": 5125216.0,
+  "forecast_total_bf": 5498931.0,
+  "forecast_total_lo80": 3913232.0,
+  "forecast_total_hi80": 6337200.0,
+  "forecast_markets_sum": 5125216.0
+}

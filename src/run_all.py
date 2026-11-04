@@ -4,7 +4,7 @@ Later stages (drivers, forecast, backtest) are added here as they are built.
 """
 import json
 
-from src import drivers, prepare
+from src import drivers, forecast, prepare
 
 
 def main() -> None:
@@ -14,6 +14,10 @@ def main() -> None:
                                             "repeat_rate_model_window")}, indent=2))
     print("Stage 2 - driver tree by market")
     print(json.dumps(drivers.main(), indent=2))
+    print("Stage 3 - baseline forecast and backtest")
+    s = forecast.main()
+    print(json.dumps({k: s[k] for k in ("selected_model", "backtest_avg_wape", "forecast_months",
+                                       "forecast_total", "forecast_total_bf")}, indent=2))
 
 
 if __name__ == "__main__":
