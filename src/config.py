@@ -40,3 +40,15 @@ def state_to_market(state: str) -> str:
 TOP_N_CATEGORIES = 10
 OTHER_CATEGORY = "Other"
 UNKNOWN_CATEGORY = "unknown"
+
+# Driver tree: revenue = customers x orders per customer x AOV (monthly, per market).
+DRIVERS = ["customers", "orders_per_customer", "aov"]
+
+# Period comparisons for the driver decomposition: (label, base start, base end, current start, current end).
+COMPARISONS = [
+    ("YoY Jan-Aug", "2017-01", "2017-08", "2018-01", "2018-08"),
+    ("Last 6m vs prior 6m", "2017-09", "2018-02", "2018-03", "2018-08"),
+]
+
+# Baseline drivers for scenarios: average of the last N months of the modelling window.
+BASELINE_MONTHS = 3
