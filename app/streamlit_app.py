@@ -590,76 +590,113 @@ with tab_check:
     chk = check.set_index("model")
     picked = fsum["check"]["selected_by_backtest"]
     bt_avg = scores.groupby("model")["wape"].mean()
+    june = cfg.month_label(cfg.CHECK_END)
     md(f"""
-{N_MODELS} forecasting models were compared in two tests. Each model only ever sees data up to the month it forecasts
-from, so nothing is learned from the answer.
+{N_MODELS} forecasting models were compared. Each model only ever sees data up to the month it forecasts from,
+so nothing is learned from the answer. This tab answers **two different questions**:
 
-- **Backtest** (data up to {cfg.month_label(cfg.MODEL_END)}): each model forecasts {cfg.FORECAST_H} months ahead from
-  4 different starting points, and its error is averaged over the total and the 5 markets. The best model makes
-  the plan.
-- **Real-world check:** plan as if it were the end of **{cfg.month_label(cfg.CHECK_END)}**, pick the model the
-  backtest would have picked then, and compare its forecast with what actually happened in **{cfg.CHECK_LABEL}**.
+1. **Which model makes the plan?** Backtest on all the data (up to {cfg.month_label(cfg.MODEL_END)}): each model
+   forecasts {cfg.FORECAST_H} months ahead from 4 starting points, error averaged over the total and the 5 markets.
+   The winner, the **3-month average**, is the model behind the {PLAN} plan.
+2. **Would that way of choosing have worked in the past?** Go back to the end of **{june}**, apply the same rule
+   with only the data known then, and compare the chosen model's forecast with what really happened in
+   **{cfg.CHECK_LABEL}**. This tests the *method*; the model it picks is **not** used for the plan.
 """)
     c_now = f"Backtest to {cfg.month_label(cfg.MODEL_END)} %"
-    c_then = f"Backtest to {cfg.month_label(cfg.CHECK_END)} %"
-    c_real = f"Real {cfg.span_label(str(pd.Period(cfg.CHECK_END, 'M') + 1), cfg.MODEL_END)} %"
+    c_then = f"Backtest to {june} %"
+    c_real = f"Error on real {cfg.span_label(str(pd.Period(cfg.CHECK_END, 'M') + 1), cfg.MODEL_END)} %"
     short = {"WindowAverage": "3-month average", "Naive": "Last month repeated", "RWD": "Random walk + drift",
              "AutoETS": "AutoETS", "AutoTheta": "AutoTheta", "Drivers": "Driver-based",
              "Prophet": "Prophet (daily)", "LagRegression": "Customer-momentum regression",
              "ProphetKPI": "Prophet + forecast KPIs", "ProphetLead": "Prophet + leading indicators"}
     tbl = pd.DataFrame({
         "Model": [short[m] for m in chk.index],
-        "Role": ["Plan model" if m == fsum["selected_model"] else
-                 (f"Picked in {cfg.month_label(cfg.CHECK_END)}" if m == picked else "") for m in chk.index],
+        "Role": ["✓ Plan model" if m == fsum["selected_model"] else
+                 ("June test pick" if m == picked else "") for m in chk.index],
         c_now: [bt_avg[m] * 100 for m in chk.index],
         c_then: chk["backtest_avg_wape"] * 100,
-        c_real: chk["check_total_error"] * 100,
+        c_real: chk["check_avg_wape"] * 100,
+        "Direction": ["too high" if v > 0.005 else ("too low" if v < -0.005 else "on target")
+                      for v in chk["check_total_error"]],
     }, index=chk.index).sort_values(c_now)
-    st.dataframe(tbl.set_index("Model").style.format({c_now: "{:.1f}", c_then: "{:.1f}", c_real: "{:+.1f}"}),
+    st.dataframe(tbl.set_index("Model").style.format({c_now: "{:.1f}", c_then: "{:.1f}", c_real: "{:.1f}"}),
                  use_container_width=True)
-    md("Error = average % gap between forecast and actual (WAPE). On the real months, + means the forecast was too "
-       "high.", caption=True)
+    md(f"**✓ Plan model** = the model used for the {PLAN} plan. **June test pick** = the model the same rule would have "
+       f"chosen in {june}: shown to test the rule, not used.", caption=True)
+    md(f"All errors are **absolute** (WAPE): the average size of the gap between forecast and actual, whether too high "
+       f"or too low, over the total and the 5 markets. Lower is better. Columns: backtest on all the data (question 1: "
+       f"this ranks the models for the plan), backtest with data to {june} (what the rule saw in June), and the error on "
+       f"the real {cfg.CHECK_LABEL} (question 2). *Direction* says whether the total was forecast too high or too low. "
+       f"The real {cfg.CHECK_LABEL} months are a test only: choosing the plan model by them would be hindsight.",
+       caption=True)
 
     # forecasts made in June vs what happened
     h18 = hist[hist["month"] >= "2018-01"]
     fpc = go.Figure()
     fpc.add_scatter(x=h18["month"], y=h18["revenue"] * FX, name="Actual", mode="lines+markers",
                     line=dict(color="#0b0b0b", width=2.5), marker=dict(size=6), hovertemplate=HOVER + "<extra>Actual</extra>")
-    style = {picked: (ORANGE, 2.5), "WindowAverage": (BLUE, 2.5), "Prophet": ("#1baf7a", 2),
-             "LagRegression": ("#eda100", 2)}
+    style = {picked: (ORANGE, 2.5, f"{short[picked]} (test only: June's pick)"),
+             "WindowAverage": (BLUE, 2.5, "3-month average (used for the plan)"),
+             "Prophet": ("#1baf7a", 2, "Prophet (daily)"),
+             "Naive": ("#e87ba4", 2, "Last month repeated")}
+    first_other = True
     for m in [c for c in check_paths.columns if c not in ("month", "actual")]:
-        col, wd = style.get(m, ("#c3c2b7", 1.2))
         x = [cfg.CHECK_END] + list(check_paths["month"])
         y = [hist.set_index("month").loc[cfg.CHECK_END, "revenue"]] + list(check_paths[m])
-        fpc.add_scatter(x=x, y=[v * FX for v in y], name=MODEL_NAMES[m], mode="lines",
-                        line=dict(color=col, width=wd, dash="dot" if m not in style else "solid"),
-                        hovertemplate=HOVER + f"<extra>{MODEL_NAMES[m]}</extra>")
+        if m in style:
+            col, wd, name = style[m]
+            fpc.add_scatter(x=x, y=[v * FX for v in y], name=name, mode="lines", line=dict(color=col, width=wd),
+                            hovertemplate=HOVER + f"<extra>{MODEL_NAMES[m]}</extra>")
+        else:  # the other models, one grey legend entry
+            fpc.add_scatter(x=x, y=[v * FX for v in y], name="Other models", mode="lines", legendgroup="other",
+                            showlegend=first_other, line=dict(color="#c3c2b7", width=1.2, dash="dot"),
+                            hovertemplate=HOVER + f"<extra>{MODEL_NAMES[m]}</extra>")
+            first_other = False
     fpc.add_vrect(x0=cfg.CHECK_END, x1=check_paths["month"].iloc[-1], fillcolor="#eef4fb", line_width=0,
                   layer="below")
-    fpc.update_layout(height=420, margin=dict(l=10, r=10, t=60, b=10), plot_bgcolor="white",
-                      title=dict(text=f"Forecasts made at the end of {cfg.month_label(cfg.CHECK_END)} vs what happened",
-                                 y=0.97, x=0, xanchor="left"),
-                      legend=dict(orientation="h", y=-0.15, x=0, font=dict(size=10)),
-                      yaxis=cur_axis(rangemode="tozero"), xaxis=dict(type="category"), hovermode="x unified")
+    fpc.add_annotation(x=check_paths["month"].iloc[1], y=1, yref="paper", yanchor="bottom", showarrow=False,
+                       text=f"forecast from {june}", font=dict(size=11, color=INK2))
+    months_axis = list(h18["month"]) + [m for m in check_paths["month"] if m not in set(h18["month"])]
+    fpc.update_layout(height=440, margin=dict(l=10, r=10, t=70, b=10), plot_bgcolor="white",
+                      title=dict(text=f"Forecasts made at the end of {june} vs what happened", y=0.97, x=0,
+                                 xanchor="left"),
+                      legend=dict(orientation="h", y=-0.12, x=0, font=dict(size=11)),
+                      yaxis=cur_axis(rangemode="tozero"),
+                      xaxis=dict(type="category", tickvals=months_axis[::2], tickangle=0,
+                                 ticktext=[pd.Period(m, "M").strftime("%b %y") for m in months_axis[::2]]),
+                      hovermode="x unified")
     st.plotly_chart(fpc, use_container_width=True)
+
+    # Prophet's error from each starting point of the main backtest: close in June, unstable before
+    bp = pd.read_csv(P / "backtest_predictions.csv")
+    pt = bp[bp["unique_id"] == "Total"]
+    per_cut = {c: (g["Prophet"] - g["y"]).abs().sum() / g["y"].sum() for c, g in pt.groupby("cutoff")}
+    span_txt = ", ".join(f"{pd.Period(c, 'M').strftime('%b %Y')} {v:.0%}" for c, v in per_cut.items())
 
     md(f"""
 **What we learned**
-- **In {cfg.month_label(cfg.CHECK_END)} the backtest would have picked {MODEL_NAMES[picked]}**, and it forecast
+- **In {june} the rule would have chosen {MODEL_NAMES[picked]}** (test only, not used), and it forecast
   {cfg.CHECK_LABEL} **{chk.loc[picked, 'check_total_error']:+.0%} too high**. Revenue had grown for 18 months, then
   stopped in July: a turning point that no model built on past revenue can see coming.
 - **The flat 3-month average** (the model behind this plan) was {chk.loc['WindowAverage', 'check_total_error']:+.0%} out,
   and it wins the backtest on all the data ({bt_avg['WindowAverage']:.1%} error).
+- **Prophet (daily) was close on {cfg.CHECK_LABEL}** ({chk.loc['Prophet', 'check_total_error']:+.1%} on the total), but
+  it could not have been trusted: from the backtest's starting points its total error was {span_txt}; across the 5
+  markets it was {chk.loc['Prophet', 'check_avg_wape']:.0%} off on {cfg.CHECK_LABEL}, worse than repeating last month
+  ({chk.loc['Naive', 'check_avg_wape']:.0%}); and two months is a small test (last month repeated was even closer,
+  {chk.loc['Naive', 'check_total_error']:+.1%}, largely by luck). Choosing it now, after seeing the answer, would be
+  hindsight. It is promising: it learns Black Friday by itself and steadies with more history, so it should be tested
+  again once 2+ years of data exist.
 - **Richer models did not help:** the driver-based model ({bt_avg['Drivers']:.1%}), a regression on customer
   momentum ({bt_avg['LagRegression']:.1%}), **Prophet with forecast KPIs** as regressors ({bt_avg['ProphetKPI']:.1%}: it
-  mostly rebuilds customers x orders x AOV, so it is only as good as those KPI forecasts), **Prophet with leading
-  indicators** lagged 2 months ({bt_avg['ProphetLead']:.1%}) and **Prophet** with weekly and yearly seasonality learned
-  from daily data ({bt_avg['Prophet']:.0%}; with under two years of history the yearly pattern is unstable).
+  mostly rebuilds customers x orders x AOV, so it is only as good as those KPI forecasts) and **Prophet with leading
+  indicators** lagged 2 months ({bt_avg['ProphetLead']:.1%}).
 - **Leading indicators were the closest call:** late deliveries jumped to 14-19% in Feb-Mar 2018, and as of June the
   leading-indicator model had the best backtest of all. It still missed the July turning point.
-- **The warning sign was in the KPIs:** customer numbers were already falling in 4 of 5 markets by
-  {cfg.month_label(cfg.CHECK_END)}. That is why the plan comes with customer-based triggers (see the decision memo).
+- **The warning sign was in the KPIs:** customer numbers were already falling in 4 of 5 markets by {june}. That is
+  why the plan comes with customer-based triggers (see the decision memo).
 """)
+
 
 # ------------------------------------------------------------------ history
 @st.cache_data

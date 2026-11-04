@@ -65,10 +65,15 @@ For reference, H1 2018 was R$ 5.51M and H2 2017 R$ 4.01M.
   forecast KPIs as regressors (21.6%), Prophet using lagged leading indicators such as late deliveries
   (21.7%) and Prophet with seasonality learned from daily data (97%, unstable with under
   two years of history).
-- **Planning from Jun 2018, the backtest would have picked Prophet with leading indicators (late deliveries, cancellations, new customers)**, and it over-forecast
+- **Planning from Jun 2018, the same selection rule would have picked Prophet with leading indicators (late deliveries, cancellations, new customers)**
+  (a test of the method; that model is not used for this plan), and it over-forecast
   Jul–Aug 2018 by +22%: growth stopped in July, a turning point no model saw
   coming. The flat 3-month average was +10% out. This is why the plan is flat and
   why it comes with explicit triggers.
+- **Prophet (daily) came close on Jul–Aug 2018** (-3.4%), but its
+  backtest errors swung from 10% to 246% depending on the
+  starting point, so it could not have been trusted in advance; picking it now would be hindsight. It learns Black
+  Friday by itself and steadies with more history: worth re-testing once two or more years of data exist.
 - **SP is where size and momentum meet.** 41% of revenue and
   +27% customers over the last 6 months, the only market with strong customer growth.
 

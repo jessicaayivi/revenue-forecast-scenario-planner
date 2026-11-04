@@ -55,7 +55,15 @@ def load() -> dict:
         "last_year_half": hist[hist["month"].between(*cfg.LAST_YEAR_HALF)]["revenue"].sum(),
         "scores": pd.read_csv(P / "backtest_scores.csv"),
         "check": pd.read_csv(P / "forecast_check.csv").set_index("model"),
+        "prophet_by_start": _prophet_by_start(),
     }
+
+
+def _prophet_by_start() -> pd.Series:
+    """Prophet (daily) error on total revenue from each starting point of the main backtest."""
+    cv = pd.read_csv(P / "backtest_predictions.csv")
+    t = cv[cv["unique_id"] == "Total"]
+    return pd.Series({c: (g["Prophet"] - g["y"]).abs().sum() / g["y"].sum() for c, g in t.groupby("cutoff")})
 
 
 def check_claims(d: dict) -> None:
@@ -85,6 +93,9 @@ def check_claims(d: dict) -> None:
         "no richer model beat the flat one in the backtest": (
             avg["WindowAverage"] <= avg[["Drivers", "Prophet", "LagRegression", "ProphetKPI", "ProphetLead"]].min()),
         "the June pick was a richer model, not the flat one": d["fs"]["check"]["selected_by_backtest"] != "WindowAverage",
+        "Prophet (daily) was close on the check months": abs(d["check"].loc["Prophet", "check_total_error"]) < 0.05,
+        "Prophet (daily) was erratic across backtest starting points": (
+            d["prophet_by_start"].max() > 1.0 and d["prophet_by_start"].min() < 0.2),
         "the model picked as of June over-forecast the check months": d["fs"]["check"]["selected_check_total_error"] > 0.10,
         "Prophet was unstable in the backtest": d["scores"].groupby("model")["wape"].mean()["Prophet"] > 0.5,
     }
@@ -187,10 +198,15 @@ For reference, {prev} was {_m(d['prev_half'])} and {ly} {_m(d['last_year_half'])
   forecast KPIs as regressors ({wa['ProphetKPI']:.1%}), Prophet using lagged leading indicators such as late deliveries
   ({wa['ProphetLead']:.1%}) and Prophet with seasonality learned from daily data ({wa['Prophet']:.0%}, unstable with under
   two years of history).
-- **Planning from {cfg.month_label(cfg.CHECK_END)}, the backtest would have picked {NAMES[picked]}**, and it over-forecast
+- **Planning from {cfg.month_label(cfg.CHECK_END)}, the same selection rule would have picked {NAMES[picked]}**
+  (a test of the method; that model is not used for this plan), and it over-forecast
   {cfg.CHECK_LABEL} by {_p(chk.loc[picked, 'check_total_error'])}: growth stopped in July, a turning point no model saw
   coming. The flat 3-month average was {_p(chk.loc['WindowAverage', 'check_total_error'])} out. This is why the plan is flat and
   why it comes with explicit triggers.
+- **Prophet (daily) came close on {cfg.CHECK_LABEL}** ({d['check'].loc['Prophet', 'check_total_error']:+.1%}), but its
+  backtest errors swung from {d['prophet_by_start'].min():.0%} to {d['prophet_by_start'].max():.0%} depending on the
+  starting point, so it could not have been trusted in advance; picking it now would be hindsight. It learns Black
+  Friday by itself and steadies with more history: worth re-testing once two or more years of data exist.
 - **SP is where size and momentum meet.** {_p(msc.loc['SP', 'revenue_share'], False)} of revenue and
   {_p(msc.loc['SP', 'customers_growth_last6m'])} customers over the last 6 months, the only market with strong customer growth.
 

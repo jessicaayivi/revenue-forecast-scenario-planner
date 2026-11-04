@@ -56,11 +56,17 @@ than hidden inside a trend line.
 
 ![Baseline forecast](docs/images/03_forecast.png)
 
-**4. Would it have worked? A real-world check.** Planning as if it were the end of June 2018, the backtest
-would have picked Prophet with leading indicators, which then forecast Jul–Aug +22% too high: revenue stopped
-growing in July, a turning point no model saw coming. Late deliveries had spiked to 14–19% in Feb–Mar 2018 and
-customer numbers were already falling in 4 of 5 markets, but not clearly enough for any model to act on. That is
-why the plan is flat and comes with customer-based triggers.
+**4. Would it have worked? A real-world check.** This tests the *method*, not the plan model. Going back to
+the end of June 2018 and applying the same selection rule, the backtest would have
+picked Prophet with leading indicators, which then forecast Jul–Aug +22% too high: revenue stopped growing in
+July, a turning point no model saw coming. Late deliveries had spiked to 14–19% in Feb–Mar 2018 and customer numbers were already falling in 4
+of 5 markets, but not clearly enough for any model to act on. That is why the plan is flat and comes with
+customer-based triggers.
+
+Prophet on daily data came close on Jul–Aug (−3%), but from the backtest's starting points its error swung
+between about 10% and 250%, so it could not have been trusted in advance; choosing it after seeing Jul–Aug would
+be hindsight. It learns Black Friday by itself and steadies with more history: worth re-testing with 2+ years of
+data.
 
 ![Forecast check](docs/images/03_forecast_check.png)
 

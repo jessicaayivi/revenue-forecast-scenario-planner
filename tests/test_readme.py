@@ -30,6 +30,8 @@ def expected(d) -> list[str]:
         f"{b['six_months'] / d['last_year_half'] - 1:+.0%} on {cfg.LAST_YEAR_HALF_NAME}",
         f"picked {READABLE[fs['check']['selected_by_backtest']]}",
         f"Jul–Aug {fs['check']['selected_check_total_error']:+.0%} too high",
+        f"came close on Jul–Aug ({d['check'].loc['Prophet', 'check_total_error']:.0%})".replace("-", "−"),
+        f"between about {d['prophet_by_start'].min() * 100:.0f}% and {round(d['prophet_by_start'].max() * 100, -1):.0f}%",
         f"downside of R$ {dn['six_months']/1e6:.2f}M",
         f"fell {-base.loc['Total', 'customers_growth_vs_prior']:.0%} in Jun–Aug",
         f"R$ {(b['six_months']-dn['six_months'])/1e6:.2f}M below plan",
