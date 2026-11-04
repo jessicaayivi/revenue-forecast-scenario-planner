@@ -4,7 +4,7 @@ Later stages (drivers, forecast, backtest) are added here as they are built.
 """
 import json
 
-from src import drivers, forecast, prepare
+from src import drivers, forecast, prepare, scenarios
 
 
 def main() -> None:
@@ -18,6 +18,8 @@ def main() -> None:
     s = forecast.main()
     print(json.dumps({k: s[k] for k in ("selected_model", "backtest_avg_wape", "forecast_months",
                                        "forecast_total", "forecast_total_bf")}, indent=2))
+    print("Stage 4 - scenarios and scorecards")
+    print(json.dumps(scenarios.main(), indent=2))
 
 
 if __name__ == "__main__":

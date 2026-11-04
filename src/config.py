@@ -61,3 +61,9 @@ INTERVAL_LEVEL = 0.80
 # Black Friday: one November in the data, so the uplift is a labelled judgement, not a learned effect.
 # Uplift = Nov 2017 revenue / average of Oct and Dec 2017.
 BLACK_FRIDAY_MONTH = 11
+
+# Scenarios: customers and AOV compound monthly from the baseline; orders per customer is held fixed
+# (Stage 2: it barely moves). Presets are derived from observed driver growth, see src/scenarios.py.
+SCENARIOS = ["Downside", "Base", "Upside"]
+# Sensitivity: extra monthly customer growth used to compare markets for investment.
+SENSITIVITY_STEP = 0.01
