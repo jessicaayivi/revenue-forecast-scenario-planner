@@ -1,0 +1,80 @@
+{
+  "raw_rows": {
+    "orders": 99441,
+    "items": 112650,
+    "payments": 103886,
+    "customers": 99441,
+    "products": 32951,
+    "translation": 71
+  },
+  "duplicate_order_ids": 0,
+  "duplicate_item_keys": 0,
+  "order_status_counts": {
+    "delivered": 96478,
+    "shipped": 1107,
+    "canceled": 625,
+    "unavailable": 609,
+    "invoiced": 314,
+    "processing": 301,
+    "created": 5,
+    "approved": 2
+  },
+  "orders_excluded_not_delivered": 2963,
+  "delivered_orders_without_delivery_date": 8,
+  "delivered_orders_without_items": 0,
+  "products_missing_category": 610,
+  "payments_vs_items_gap_over_1brl_share": 0.0025,
+  "delivered_orders_after_model_window": 0,
+  "delivered_orders_before_model_window": 267,
+  "model_window": [
+    "2017-01",
+    "2018-08"
+  ],
+  "model_window_months": 20,
+  "model_window_revenue": 13181027.13,
+  "model_window_gmv": 15373120.01,
+  "model_window_orders": 96211,
+  "model_window_customers": 93104,
+  "repeat_rate_model_window": 0.03,
+  "orders_per_customer_model_window": 1.0334,
+  "top5_states": [
+    "SP",
+    "RJ",
+    "MG",
+    "RS",
+    "PR"
+  ],
+  "top5_state_revenue_share": 0.7394,
+  "market_revenue_share": {
+    "SP": 0.3836,
+    "Rest of Brazil": 0.2223,
+    "South": 0.1438,
+    "RJ": 0.1329,
+    "MG": 0.1175
+  },
+  "top_categories": [
+    "health_beauty",
+    "watches_gifts",
+    "bed_bath_table",
+    "sports_leisure",
+    "computers_accessories",
+    "furniture_decor",
+    "housewares",
+    "cool_stuff",
+    "auto",
+    "garden_tools"
+  ],
+  "category_revenue_share": {
+    "Other": 0.3753,
+    "health_beauty": 0.0933,
+    "watches_gifts": 0.0883,
+    "bed_bath_table": 0.0776,
+    "sports_leisure": 0.0723,
+    "computers_accessories": 0.0674,
+    "furniture_decor": 0.0536,
+    "housewares": 0.0466,
+    "cool_stuff": 0.0462,
+    "auto": 0.0438,
+    "garden_tools": 0.0356
+  }
+}
