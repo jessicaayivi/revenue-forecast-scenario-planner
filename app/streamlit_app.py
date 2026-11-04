@@ -26,6 +26,41 @@ MKT_STATES = {"SP": "São Paulo", "RJ": "Rio de Janeiro", "MG": "Minas Gerais",
 
 st.set_page_config(page_title="Revenue Scenario Planner", layout="wide")
 
+# Phone layout. Streamlit stacks columns on narrow screens; these rules only apply below 640px wide, so the
+# desktop layout is unchanged. KPI rows stay 2 x 2, headings shrink and a hint points to the hidden controls.
+st.markdown("""
+<style>
+.mobile-only {display: none;}
+@media (max-width: 640px) {
+  .mobile-only {display: block;}
+  .block-container {padding: 2.5rem 0.9rem 2rem 0.9rem !important;}
+  h1 {font-size: 1.75rem !important; line-height: 1.2 !important; padding-bottom: 0.3rem !important;}
+  h2, h3 {font-size: 1.25rem !important;}
+  div[data-testid="stMetricValue"] {font-size: 1.45rem !important;}
+  div[data-testid="stMetricLabel"] p {font-size: 0.8rem !important;}
+  div[data-testid="stHorizontalBlock"]:has(div[data-testid="stMetric"]) {flex-wrap: wrap !important; gap: 0.6rem !important;}
+  div[data-testid="stHorizontalBlock"]:has(div[data-testid="stMetric"]) > div {
+    min-width: calc(50% - 0.6rem) !important; width: calc(50% - 0.6rem) !important; flex: 1 1 calc(50% - 0.6rem) !important;}
+  button[role="tab"] p {font-size: 0.85rem !important;}
+  .phone-hint {background: #eef4fb; border-radius: 8px; padding: 0.55rem 0.75rem; font-size: 0.85rem;
+               color: #0b0b0b; margin: 0.3rem 0 0.6rem 0;}
+}
+</style>
+""", unsafe_allow_html=True)
+
+PLOT_CONFIG = {"displayModeBar": False, "responsive": True}
+
+
+def plot(fig):
+    """Every chart: full width, no toolbar (it covers the chart and gets in the way of scrolling on phones)."""
+    st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
+
+
+def short_months(months, step=4):
+    """Fewer, shorter x labels for monthly category axes ('Jan 18'), readable on a phone."""
+    vals = list(months)[::step]
+    return dict(tickvals=vals, ticktext=[pd.Period(m, "M").strftime("%b %y") for m in vals], tickangle=0)
+
 
 @st.cache_data
 def load():
@@ -184,6 +219,8 @@ md(f"Brazilian e-commerce marketplace (Olist, public data). **History: {HIST_LAB
    + ("" if SYM == "R$" else f" (R$ {cfg.BRL_PER_EUR} = €1, {cfg.FX_SOURCE})")
    + ". New here? Open **Start here**.")
 st.caption("Demonstration project using public data (Olist). Not affiliated with any employer.")
+st.markdown('<div class="mobile-only phone-hint">📱 Tap <b>&gt;</b> at the top-left to open the scenario controls. '
+            'Swipe the tab bar sideways to see all 8 tabs.</div>', unsafe_allow_html=True)
 
 tot, rtot = summ.loc["Total"], ref_summ.loc["Total"]
 st.markdown(f"**Scenario: {scenario_label}**")
@@ -214,9 +251,9 @@ with tab_start:
     end = pd.Period(cfg.MODEL_END, "M")
     tl = pd.DataFrame([
         dict(Phase="Too few orders (excluded)", Start="2016-09-01", Finish=pd.Period(cfg.MODEL_START, "M").start_time,
-             Label="2016: test period", Row="Data"),
+             Label="2016", Row="Data"),
         dict(Phase="History used by the model", Start=pd.Period(cfg.MODEL_START, "M").start_time,
-             Finish=(end + 1).start_time, Label=f"History: {HIST_LABEL} ({cfg.HISTORY_MONTHS} months)", Row="Data"),
+             Finish=(end + 1).start_time, Label=f"History ({cfg.HISTORY_MONTHS} months)", Row="Data"),
         dict(Phase="Plan: actual", Start=ps.start_time, Finish=(end + 1).start_time, Label="", Row=PLAN),
         dict(Phase="Plan: forecast", Start=(end + 1).start_time, Finish=(pd.Period(cfg.PLAN_END, "M") + 1).start_time,
              Label="", Row=PLAN),
@@ -227,13 +264,12 @@ with tab_start:
                                           "Plan: actual": "#86b6ef", "Plan: forecast": BLUE})
     ftl.update_traces(textposition="inside", insidetextanchor="middle", textfont_color="#0b0b0b",
                       textangle=0, constraintext="none")
-    # the plan bars are too short for text: label them from the left
-    ftl.add_annotation(x=ps.start_time, y=PLAN, xanchor="right", showarrow=False, font=dict(size=11, color=INK2),
-                       text=f"Plan {PLAN}: <b>{ACT_LABEL} actual</b> (light) + <b>{FC_LABEL} forecast</b> (dark)  ")
     ftl.update_layout(height=190, margin=dict(l=10, r=10, t=10, b=10), plot_bgcolor="white", showlegend=False,
                       yaxis=dict(title=None, categoryorder="array", categoryarray=[PLAN, "Data"]),
-                      xaxis=dict(dtick="M3", tickformat="%b %Y", gridcolor=GRID))
-    st.plotly_chart(ftl, use_container_width=True)
+                      xaxis=dict(dtick="M6", tickformat="%b %y", gridcolor=GRID, tickangle=0))
+    plot(ftl)
+    md(f"**Data:** 2016 (too few orders, excluded) and the history used by the model, {HIST_LABEL}. "
+       f"**{PLAN}:** {ACT_LABEL} actual (light blue) + {FC_LABEL} forecast (dark blue).", caption=True)
     md(f"The data runs from Sep 2016 to Oct 2018. 2016 has only {dq['delivered_orders_before_model_window']} "
        f"delivered orders and Sep-Oct 2018 none yet delivered, so the model learns from {HIST_LABEL}. The plan is "
        f"the calendar half-year {PLAN}: {ACT_LABEL} is already known, {FC_LABEL} is forecast (the usual "
@@ -264,7 +300,7 @@ with tab_start:
     fmap.update_layout(height=520, margin=dict(l=0, r=0, t=0, b=0),
                        legend=dict(orientation="h", y=-0.02, x=0, title_text="Market  "))
     with cmap:
-        st.plotly_chart(fmap, use_container_width=True)
+        plot(fmap)
         st.caption("One bubble per state, placed at its capital; size = revenue Jan 2017 - Aug 2018.")
     with ctab:
         share = s.groupby("market")["revenue_share"].sum()
@@ -431,7 +467,7 @@ profit**: a price rise also improves the margin on every sale, but the data has 
                                     xanchor="left"),
                          legend=dict(orientation="h", y=1.04, yanchor="bottom", x=0),
                          yaxis=cur_axis(rangemode="tozero"), xaxis=dict(type="category"), hovermode="x unified")
-        st.plotly_chart(f3, use_container_width=True)
+        plot(f3)
 
         by_mkt = imp.drop(index="Total")
         tbl = pd.DataFrame({
@@ -470,7 +506,7 @@ profit**: a price rise also improves the margin on every sale, but the data has 
                              showlegend=False,
                              xaxis=dict(title="Customer response (elasticity)", gridcolor=GRID, range=[0, 3]),
                              yaxis=cur_axis(zeroline=True, zerolinecolor=LIGHT))
-            st.plotly_chart(f5, use_container_width=True)
+            plot(f5)
 
     if wi_markets and mode == "Change one driver":
         st.markdown("**Where would the same change be worth most?**")
@@ -490,7 +526,7 @@ profit**: a price rise also improves the margin on every sale, but the data has 
                          xaxis=cur_axis(zeroline=True, zerolinecolor=LIGHT,
                                         range=[lo - (pad if lo < 0 else 0), hi + (pad if hi > 0 else 0)]),
                          yaxis=dict(autorange="reversed"))
-        st.plotly_chart(f4, use_container_width=True)
+        plot(f4)
 
 # ------------------------------------------------------------------ plan
 with tab_plan:
@@ -509,32 +545,33 @@ with tab_plan:
     months = list(hist["month"]) + list(m_tot["month"])
     p0 = months.index(cfg.PLAN_START)
     fig.add_vrect(x0=p0 - 0.5, x1=len(months) - 0.5, fillcolor="#eef4fb", line_width=0, layer="below")
-    fig.add_annotation(x=(p0 - 1) / 2, y=1, yref="paper", text=f"History ({HIST_LABEL})",
+    fig.add_annotation(x=(p0 - 1) / 2, y=1, yref="paper", text="History",
                        showarrow=False, font=dict(color=INK2, size=12), yanchor="bottom")
     fig.add_annotation(x=p0 + (len(months) - p0 - 1) / 2, y=1, yref="paper",
-                       text=f"Plan {PLAN}: {ACT_LABEL} actual + {FC_LABEL} forecast",
+                       text=f"Plan {PLAN}",
                        showarrow=False, font=dict(color=BLUE, size=12), yanchor="bottom")
-    fig.update_layout(height=420, margin=dict(l=10, r=10, t=100, b=10), plot_bgcolor="white",
+    fig.update_layout(height=420, margin=dict(l=10, r=10, t=60, b=10), plot_bgcolor="white",
                       title=dict(text="Monthly revenue, total", y=0.97, x=0, xanchor="left"),
-                      legend=dict(orientation="h", y=1.1, yanchor="bottom", x=0),
+                      legend=dict(orientation="h", y=-0.12, yanchor="top", x=0),
                       yaxis=cur_axis(rangemode="tozero"),
-                      xaxis=dict(type="category", tickvals=months[::3], tickangle=0),
+                      xaxis=dict(type="category", **short_months(months)),
                       hovermode="x unified")
-    st.plotly_chart(fig, use_container_width=True)
+    plot(fig)
+    md(f"Shaded: the {PLAN} plan = {ACT_LABEL} actual + {FC_LABEL} forecast.", caption=True)
 
     table = pd.DataFrame({
-        "Customers %/month": params["g_customers"] * 100,
-        "AOV %/month": params["g_aov"] * 100,
-        f"{ACT_LABEL} actual ({SYM}k)": summ.loc[cfg.MARKETS, "actual"] * FX / 1e3,
+        f"{PLAN} ({SYM}k)": summ.loc[cfg.MARKETS, "six_months"] * FX / 1e3,
         f"{Q1} ({SYM}k)": summ.loc[cfg.MARKETS, "plan_q1"] * FX / 1e3,
         f"{Q2} ({SYM}k)": summ.loc[cfg.MARKETS, "plan_q2"] * FX / 1e3,
-        f"{PLAN} ({SYM}k)": summ.loc[cfg.MARKETS, "six_months"] * FX / 1e3,
+        f"{ACT_LABEL} actual ({SYM}k)": summ.loc[cfg.MARKETS, "actual"] * FX / 1e3,
         f"vs flat ({SYM}k)": (summ.loc[cfg.MARKETS, "six_months"] - ref_summ.loc[cfg.MARKETS, "six_months"])
         * FX / 1e3,
+        "Customers %/month": params["g_customers"] * 100,
+        "AOV %/month": params["g_aov"] * 100,
     })
-    table.loc["Total"] = [float("nan"), float("nan"), tot["actual"] * FX / 1e3, tot["plan_q1"] * FX / 1e3,
-                          tot["plan_q2"] * FX / 1e3,
-                          tot["six_months"] * FX / 1e3, (tot["six_months"] - rtot["six_months"]) * FX / 1e3]
+    table.loc["Total"] = [tot["six_months"] * FX / 1e3, tot["plan_q1"] * FX / 1e3, tot["plan_q2"] * FX / 1e3,
+                          tot["actual"] * FX / 1e3, (tot["six_months"] - rtot["six_months"]) * FX / 1e3,
+                          float("nan"), float("nan")]
     # growth rates as text, so the Total row shows blank rather than Streamlit's "None"
     rates = ["Customers %/month", "AOV %/month"]
     table[rates] = table[rates].apply(lambda s: s.map(lambda v: "" if pd.isna(v) else f"{v:.2f}"))
@@ -557,7 +594,7 @@ with tab_where:
     fig2.update_layout(height=260, margin=dict(l=10, r=10, t=30, b=10), plot_bgcolor="white",
                        title=f"Extra {FC_LABEL} revenue per +1 pt monthly customer growth",
                        xaxis=cur_axis(), yaxis=dict(autorange="reversed"))
-    st.plotly_chart(fig2, use_container_width=True)
+    plot(fig2)
     pct_cols = ["revenue_share", "revenue_growth_yoy", "revenue_growth_last6m", "customers_growth_last6m",
                 "aov_growth_last6m", "customers_growth_last3m", "share_of_recent_growth"]
     money_cols = ["baseline_revenue_month", "aov", "extra_6m_revenue_per_1pt_customers"]
@@ -665,7 +702,7 @@ so nothing is learned from the answer. This tab answers **two different question
                       xaxis=dict(type="category", tickvals=months_axis[::2], tickangle=0,
                                  ticktext=[pd.Period(m, "M").strftime("%b %y") for m in months_axis[::2]]),
                       hovermode="x unified")
-    st.plotly_chart(fpc, use_container_width=True)
+    plot(fpc)
 
     # Prophet's error from each starting point of the main backtest: close in June, unstable before
     bp = pd.read_csv(P / "backtest_predictions.csv")
@@ -761,9 +798,9 @@ with tab_hist:
         fh.update_layout(height=380, margin=dict(l=10, r=10, t=60, b=10), plot_bgcolor="white",
                          title=dict(text=f"{label}, monthly", y=0.97, x=0, xanchor="left"),
                          legend=dict(orientation="h", y=1.02, yanchor="bottom", x=0.5),
-                         yaxis=yax, xaxis=dict(type="category", tickvals=list(shown.index)[::3]),
+                         yaxis=yax, xaxis=dict(type="category", **short_months(shown.index)),
                          hovermode="x unified")
-        st.plotly_chart(fh, use_container_width=True)
+        plot(fh)
         unit = f" ({SYM})" if kind == "money" else (" (%)" if kind == "pct" else "")
         fmt = "{:,.0f}" if kind == "money" or metric in ("orders", "customers") else (
             "{:.1f}" if kind == "pct" else "{:.3f}")
@@ -787,8 +824,8 @@ with tab_hist:
                           title=dict(text="Monthly revenue by category", y=0.97, x=0, xanchor="left"),
                           legend=dict(orientation="h", y=1.02, yanchor="bottom", x=0.4),
                           yaxis=cur_axis(rangemode="tozero"),
-                          xaxis=dict(type="category", tickvals=list(cp.index)[::3]), hovermode="x unified")
-        st.plotly_chart(fc_, use_container_width=True)
+                          xaxis=dict(type="category", **short_months(cp.index)), hovermode="x unified")
+        plot(fc_)
         st.download_button("Download category history (CSV)", cp.round(2).to_csv(), "history_categories.csv",
                            "text/csv", key="dl_cat")
 
