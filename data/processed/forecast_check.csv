@@ -1,0 +1,9 @@
+model,label,backtest_avg_wape,check_total_error,check_avg_wape,selected_in_check
+Naive,Last month repeated,0.2273,0.0033,0.0945,False
+WindowAverage,3-month average,0.2365,0.0966,0.1594,False
+RWD,Random walk with drift,0.2287,0.0803,0.1452,False
+AutoETS,AutoETS (exponential smoothing),0.2667,0.1567,0.2914,False
+AutoTheta,AutoTheta,0.1779,0.2866,0.2876,True
+Drivers,Driver-based (customers x orders/customer x AOV),0.2988,0.2351,0.3069,False
+Prophet,"Prophet (daily, weekly + yearly seasonality, Black Friday)",1.5414,-0.0341,0.1412,False
+LagRegression,Regression on revenue + 3-month customer momentum,0.35,0.0653,0.1482,False

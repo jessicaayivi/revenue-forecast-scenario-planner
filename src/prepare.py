@@ -35,6 +35,7 @@ def build_line_items(t: dict[str, pd.DataFrame]) -> pd.DataFrame:
     orders = t["orders"]
     delivered = orders[orders["order_status"] == cfg.KEEP_STATUS].copy()
     delivered["month"] = delivered["order_purchase_timestamp"].dt.to_period("M")
+    delivered["date"] = delivered["order_purchase_timestamp"].dt.normalize()
 
     products = t["products"].merge(t["translation"], on="product_category_name", how="left")
     # Two Portuguese names have no translation: keep the Portuguese name. Missing names -> "unknown".
@@ -46,7 +47,7 @@ def build_line_items(t: dict[str, pd.DataFrame]) -> pd.DataFrame:
 
     li = (
         t["items"][["order_id", "product_id", "price", "freight_value"]]
-        .merge(delivered[["order_id", "customer_id", "month"]], on="order_id", how="inner")
+        .merge(delivered[["order_id", "customer_id", "month", "date"]], on="order_id", how="inner")
         .merge(t["customers"][["customer_id", "customer_unique_id", "customer_state"]],
                on="customer_id", how="left")
         .merge(products[["product_id", "category_raw"]], on="product_id", how="left")
@@ -90,6 +91,51 @@ def aggregate(li: pd.DataFrame, by: list[str]) -> pd.DataFrame:
     g["month"] = g["month"].astype(str)
     return g.round({"revenue": 2, "gmv": 2, "aov": 2, "orders_per_customer": 4,
                     "revenue_per_customer": 2})
+
+
+def daily_market(li: pd.DataFrame) -> pd.DataFrame:
+    """Daily revenue per market over the modelling window, every day present (0 when no sales).
+
+    Used by the Prophet model, which learns weekly patterns and the Black Friday spike from daily data.
+    """
+    w = li[in_model_window(li["month"])]
+    days = pd.date_range(pd.Period(cfg.MODEL_START, "M").start_time, pd.Period(cfg.MODEL_END, "M").end_time.normalize())
+    g = w.groupby(["date", "market"])["price"].sum().unstack(fill_value=0.0).reindex(days, fill_value=0.0)
+    g = g.reindex(columns=cfg.MARKETS, fill_value=0.0)
+    out = g.rename_axis("date").reset_index().melt(id_vars="date", var_name="market", value_name="revenue")
+    out["date"] = out["date"].dt.strftime("%Y-%m-%d")
+    return out
+
+
+def state_summary(li: pd.DataFrame) -> pd.DataFrame:
+    """Revenue by customer state in the modelling window, for the map.
+
+    `revenue_month_baseline` is the Jun-Aug 2018 monthly average (the scenarios' starting point);
+    `revenue_growth_last6m` compares Mar-Aug 2018 with Sep 2017-Feb 2018.
+    """
+    w = li[in_model_window(li["month"])]
+    end = pd.Period(cfg.MODEL_END, "M")
+
+    def rev(a, b):
+        x = w[(w["month"] >= a) & (w["month"] <= b)]
+        return x.groupby("customer_state")["price"].sum()
+
+    g = w.groupby("customer_state").agg(revenue=("price", "sum"), orders=("order_id", "nunique"),
+                                        customers=("customer_unique_id", "nunique"))
+    out = pd.DataFrame({
+        "state_name": [cfg.STATES[s][0] for s in g.index],
+        "market": [cfg.state_to_market(s) for s in g.index],
+        "lat": [cfg.STATES[s][1] for s in g.index],
+        "lon": [cfg.STATES[s][2] for s in g.index],
+        "revenue": g["revenue"],
+        "revenue_share": g["revenue"] / g["revenue"].sum(),
+        "orders": g["orders"],
+        "customers": g["customers"],
+        "aov": g["revenue"] / g["orders"],
+        "revenue_month_baseline": rev(end - 2, end) / 3,
+        "revenue_growth_last6m": rev(end - 5, end) / rev(end - 11, end - 6) - 1,
+    }, index=g.index)
+    return out.rename_axis("state").reset_index().sort_values("revenue", ascending=False)
 
 
 def status_summary(orders: pd.DataFrame) -> pd.DataFrame:
@@ -177,6 +223,8 @@ def main() -> dict:
     aggregate(li, ["category"]).to_csv(out / "monthly_category.csv", index=False)
     aggregate(li, ["market", "category"]).to_csv(out / "monthly_market_category.csv", index=False)
     status_summary(t["orders"]).to_csv(out / "order_status_by_month.csv", index=False)
+    state_summary(li).round(4).to_csv(out / "state_summary.csv", index=False)
+    daily_market(li).round(2).to_csv(out / "daily_market.csv", index=False)
     order_outliers(li).to_csv(out / "order_outliers.csv", index=False)
 
     report = quality_report(t, li, top)

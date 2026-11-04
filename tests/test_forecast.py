@@ -79,6 +79,40 @@ def test_selected_model_has_lowest_average_wape(summary):
     assert s.loc[s["selected"], "model"].unique().tolist() == [summary["selected_model"]]
 
 
+def test_all_eight_models_scored(cv):
+    assert set(forecast.MODELS) <= set(cv.columns)
+    assert len(forecast.MODELS) == 8
+    assert cv[forecast.MODELS].notna().all().all()
+
+
+def test_new_models_use_no_future_data():
+    # forecasting from a cutoff must not change when later months are added to the data
+    c = "2018-03"
+    full = forecast.lag_regression_forecasts([c], 3, cfg.MODEL_END)
+    cut = forecast.lag_regression_forecasts([c], 3, c)
+    assert full["LagRegression"].to_numpy() == pytest.approx(cut["LagRegression"].to_numpy())
+    a = forecast.forecast_all(end=c, h=2).set_index(["unique_id", "ds"])["Drivers"]
+    cv = forecast.backtest(end=cfg.MODEL_END, h=2, n_windows=6)
+    b = cv[cv["cutoff"] == pd.Timestamp(c + "-01")].set_index(["unique_id", "ds"])["Drivers"]
+    assert b.loc[a.index].to_numpy() == pytest.approx(a.to_numpy(), rel=1e-6)
+
+
+def test_forecast_check_is_out_of_sample(summary):
+    chk = pd.read_csv(P / "forecast_check.csv").set_index("model")
+    s = summary["check"]
+    assert set(chk.index) == set(forecast.MODELS)
+    assert all(m > cfg.CHECK_END and m <= cfg.MODEL_END for m in s["check_months"])
+    # the model "picked in June" is the one with the lowest June-time backtest error
+    assert s["selected_by_backtest"] == chk["backtest_avg_wape"].idxmin()
+    assert chk["selected_in_check"].sum() == 1
+    tot = pd.read_csv(P / "monthly_total.csv").set_index("month")["revenue"]
+    assert s["check_actual_total"] == pytest.approx(tot.loc[s["check_months"]].sum(), abs=1)
+
+
+def test_prophet_gets_no_extra_black_friday():
+    assert "Prophet" in forecast.HAS_BLACK_FRIDAY
+
+
 def test_summary_matches_forecast_file(fc, summary):
     t = fc[fc["unique_id"] == "Total"]
     assert summary["forecast_total"] == pytest.approx(t["forecast"].sum(), abs=1)

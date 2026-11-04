@@ -7,3 +7,4 @@ plotly>=5.20
 streamlit>=1.35
 pytest>=8
 jupyter>=1.0
+prophet>=1.1.5

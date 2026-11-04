@@ -1,31 +1,49 @@
 unique_id,model,wape,bias,mape,selected
-MG,Naive,0.1414,0.0484,0.1441,False
-MG,WindowAverage,0.082,-0.0256,0.082,True
-MG,RWD,0.3439,0.3268,0.3535,False
-MG,AutoETS,0.2706,0.2664,0.2821,False
-MG,AutoTheta,0.349,0.3454,0.36,False
-RJ,Naive,0.1304,0.0875,0.1319,False
-RJ,WindowAverage,0.0827,0.0472,0.0878,True
-RJ,RWD,0.392,0.392,0.4007,False
-RJ,AutoETS,0.4809,0.4809,0.4878,False
-RJ,AutoTheta,0.3811,0.3811,0.3948,False
-Rest of Brazil,Naive,0.1444,-0.0429,0.1461,False
-Rest of Brazil,WindowAverage,0.105,-0.0788,0.1022,True
-Rest of Brazil,RWD,0.2495,0.217,0.2604,False
-Rest of Brazil,AutoETS,0.248,0.248,0.2592,False
-Rest of Brazil,AutoTheta,0.2268,0.2268,0.2379,False
-SP,Naive,0.1662,-0.1081,0.1642,False
-SP,WindowAverage,0.1918,-0.1842,0.1825,True
-SP,RWD,0.2081,0.133,0.2166,False
-SP,AutoETS,0.1384,0.1257,0.1492,False
-SP,AutoTheta,0.1142,0.0723,0.1227,False
-South,Naive,0.1582,-0.0751,0.1568,False
-South,WindowAverage,0.1561,-0.1436,0.1455,True
-South,RWD,0.2504,0.1586,0.2627,False
-South,AutoETS,0.1768,0.1543,0.1923,False
-South,AutoTheta,0.1664,0.1242,0.1792,False
-Total,Naive,0.1175,-0.047,0.1191,False
-Total,WindowAverage,0.1188,-0.1088,0.1148,True
-Total,RWD,0.24,0.2092,0.2455,False
-Total,AutoETS,0.2837,0.2834,0.2899,False
-Total,AutoTheta,0.1821,0.1784,0.1876,False
+MG,Naive,0.0806,0.0656,0.0841,False
+MG,WindowAverage,0.0757,0.05,0.0787,True
+MG,RWD,0.2376,0.2363,0.2452,False
+MG,AutoETS,0.3078,0.3078,0.3187,False
+MG,AutoTheta,0.3039,0.3039,0.3141,False
+MG,Drivers,0.2822,0.2822,0.2926,False
+MG,Prophet,1.1748,0.981,1.1436,False
+MG,LagRegression,0.2258,0.2258,0.2331,False
+RJ,Naive,0.0967,0.0344,0.1022,False
+RJ,WindowAverage,0.0978,0.0502,0.1025,True
+RJ,RWD,0.207,0.207,0.2226,False
+RJ,AutoETS,0.1974,0.193,0.2057,False
+RJ,AutoTheta,0.3095,0.3095,0.325,False
+RJ,Drivers,0.2761,0.2684,0.2851,False
+RJ,Prophet,2.016,1.9699,1.9251,False
+RJ,LagRegression,0.1296,0.112,0.1388,False
+Rest of Brazil,Naive,0.0888,-0.0161,0.0893,False
+Rest of Brazil,WindowAverage,0.0855,-0.0469,0.0845,True
+Rest of Brazil,RWD,0.1654,0.1461,0.1758,False
+Rest of Brazil,AutoETS,0.2168,0.2168,0.231,False
+Rest of Brazil,AutoTheta,0.185,0.185,0.1987,False
+Rest of Brazil,Drivers,0.1396,0.0988,0.145,False
+Rest of Brazil,Prophet,0.5754,0.4944,0.5828,False
+Rest of Brazil,LagRegression,0.0867,-0.0218,0.0871,False
+SP,Naive,0.1271,-0.0348,0.1286,False
+SP,WindowAverage,0.1321,-0.0924,0.1273,True
+SP,RWD,0.1769,0.1249,0.1884,False
+SP,AutoETS,0.1452,0.1449,0.1595,False
+SP,AutoTheta,0.127,0.1069,0.1391,False
+SP,Drivers,0.1486,0.1476,0.1631,False
+SP,Prophet,0.7527,0.6608,0.7311,False
+SP,LagRegression,0.2359,0.1495,0.2356,False
+South,Naive,0.1738,0.0439,0.178,False
+South,WindowAverage,0.1467,-0.0381,0.143,True
+South,RWD,0.2535,0.2061,0.2742,False
+South,AutoETS,0.2232,0.1899,0.2419,False
+South,AutoTheta,0.2177,0.1682,0.2344,False
+South,Drivers,0.2669,0.2447,0.2911,False
+South,Prophet,0.5749,0.5667,0.5638,False
+South,LagRegression,0.203,0.0346,0.2091,False
+Total,Naive,0.0865,0.0004,0.088,False
+Total,WindowAverage,0.0853,-0.0414,0.084,True
+Total,RWD,0.1786,0.1637,0.1853,False
+Total,AutoETS,0.2287,0.2287,0.2359,False
+Total,AutoTheta,0.1841,0.1841,0.1914,False
+Total,Drivers,0.1811,0.1811,0.1878,False
+Total,Prophet,0.7501,0.5822,0.7299,False
+Total,LagRegression,0.1117,0.0694,0.1141,False

@@ -26,16 +26,21 @@ P = cfg.PROCESSED_DIR
 def load_market() -> pd.DataFrame:
     m = pd.read_csv(P / "monthly_market.csv")
     m = m[m["in_model_window"]].copy()
-    return m[["month", "market", "revenue", "orders", "customers"]]
+    return m[["month", "market", "revenue", "orders", "customers", "items"]]
 
 
 def driver_tree(m: pd.DataFrame) -> pd.DataFrame:
-    """Monthly driver table per market, plus a 'Total' row per month and each market's revenue share."""
-    tot = m.groupby("month", as_index=False)[["revenue", "orders", "customers"]].sum()
+    """Monthly driver table per market, plus a 'Total' row per month and each market's revenue share.
+
+    AOV is further split into items per order (basket size) x price per item.
+    """
+    tot = m.groupby("month", as_index=False)[["revenue", "orders", "customers", "items"]].sum()
     tot["market"] = "Total"
     d = pd.concat([m, tot], ignore_index=True)
     d["orders_per_customer"] = d["orders"] / d["customers"]
     d["aov"] = d["revenue"] / d["orders"]
+    d["items_per_order"] = d["items"] / d["orders"]
+    d["price_per_item"] = d["revenue"] / d["items"]
     month_total = d.loc[d["market"] == "Total"].set_index("month")["revenue"]
     d["revenue_share"] = d["revenue"] / d["month"].map(month_total)
     order = {k: i for i, k in enumerate(cfg.MARKETS + ["Total"])}
@@ -111,6 +116,8 @@ def baseline(tree: pd.DataFrame, n: int = cfg.BASELINE_MONTHS) -> pd.DataFrame:
             "customers": a["customers"].mean(),
             "orders_per_customer": a["orders"].sum() / a["customers"].sum(),
             "aov": a["revenue"].sum() / a["orders"].sum(),
+            "items_per_order": a["items"].sum() / a["orders"].sum(),
+            "price_per_item": a["revenue"].sum() / a["items"].sum(),
             "revenue": a["revenue"].mean(),
             "customers_growth_vs_prior": a["customers"].sum() / b["customers"].sum() - 1,
             "revenue_share": a["revenue"].sum() / tree.loc[(tree["market"] == "Total") &
@@ -125,7 +132,8 @@ def main() -> dict:
     dec = pd.concat([decompose(m, *c) for c in cfg.COMPARISONS], ignore_index=True)
     base = baseline(tree)
 
-    tree.round({"revenue": 2, "orders_per_customer": 4, "aov": 2, "revenue_share": 4}).to_csv(
+    tree.round({"revenue": 2, "orders_per_customer": 4, "aov": 2, "items_per_order": 4,
+                "price_per_item": 2, "revenue_share": 4}).to_csv(
         P / "driver_tree_market.csv", index=False)
     dec.round(4).to_csv(P / "driver_decomposition.csv", index=False)
     base.round(4).to_csv(P / "driver_baseline.csv", index=False)

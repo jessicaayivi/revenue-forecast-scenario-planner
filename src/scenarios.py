@@ -6,15 +6,21 @@ For each market m and forecast month t = 1..6:
     aov_t       = aov_0       x (1 + g_aov)^t
     revenue_t   = customers_t x orders_per_customer_0 x aov_t   (x Black Friday uplift in November)
 
-Starting values are the Stage 2 baseline (Jun-Aug 2018 averages). With both growth rates at zero the
-projection equals the Stage 3 baseline forecast (3-month average) exactly.
+AOV is items per order x price per item. Basket size is held at its baseline, so AOV growth is carried
+by price per item. The what-if functions below change any one driver, or price and customers together
+(price-volume trade-off).
+
+Months t = 1..n are the forecast months of the plan half-year (cfg.FORECAST_LABEL); the plan's earlier
+months are actuals and are added unchanged in `summarise`. Starting values are the Stage 2 baseline
+(averages of the last 3 months of data). With both growth rates at zero the projection equals the
+Stage 3 baseline forecast (3-month average) exactly.
 
 Preset scenarios, each derived from observed growth and converted to a monthly rate:
 
-    Downside  the latest quarter continues: customers Jun-Aug 2018 vs Mar-May 2018 (3 months apart),
+    Downside  the latest quarter continues: customers, last 3 months vs the 3 before (3 months apart),
               AOV held flat
     Base      flat: no change in any driver
-    Upside    the last-6-month momentum continues: customers and AOV, Mar-Aug 2018 vs Sep 2017-Feb 2018
+    Upside    the last-6-month momentum continues: customers and AOV, last 6 months vs the 6 before
               (6 months apart)
 
 Run: python -m src.scenarios   (needs src.drivers and src.forecast outputs)
@@ -32,7 +38,7 @@ P = cfg.PROCESSED_DIR
 
 DESCRIPTIONS = {
     "Downside": "Latest quarter's customer decline continues; AOV flat",
-    "Base": "Flat: drivers stay at Jun-Aug 2018 levels",
+    "Base": f"Flat: drivers stay at {cfg.BASELINE_LABEL} levels",
     "Upside": "Last-6-month momentum continues (customers and AOV)",
 }
 
@@ -44,8 +50,8 @@ def monthly_rate(period_growth: float | pd.Series, months_apart: int):
 
 def load_baseline() -> pd.DataFrame:
     b = pd.read_csv(P / "driver_baseline.csv").set_index("market")
-    return b.loc[cfg.MARKETS, ["customers", "orders_per_customer", "aov", "revenue",
-                               "customers_growth_vs_prior"]]
+    return b.loc[cfg.MARKETS, ["customers", "orders_per_customer", "aov", "items_per_order", "price_per_item",
+                               "revenue", "customers_growth_vs_prior"]]
 
 
 def black_friday_uplift() -> float:
@@ -86,17 +92,122 @@ def project(params: pd.DataFrame, black_friday: bool = True, base: pd.DataFrame 
             aov = base.loc[m, "aov"] * (1 + ga) ** t
             rev = cust * base.loc[m, "orders_per_customer"] * aov
             bf = uplift if (black_friday and int(month[-2:]) == cfg.BLACK_FRIDAY_MONTH) else 1.0
+            ipo = base.loc[m, "items_per_order"]  # basket size held; AOV growth shows up as price per item
             rows.append({"market": m, "month": month, "step": t, "customers": cust,
                          "orders_per_customer": base.loc[m, "orders_per_customer"], "aov": aov,
-                         "revenue": rev * bf})
+                         "items_per_order": ipo, "price_per_item": aov / ipo,
+                         "black_friday_factor": bf, "revenue": rev * bf})
     return pd.DataFrame(rows)
 
 
+# ------------------------------------------------------------------ what-if hypotheses
+# AOV = items per order x price per item, so a change to either moves AOV; a change to AOV itself is
+# treated as a price change (basket size held).
+LEVERS = {
+    "customers": "Customers",
+    "orders_per_customer": "Orders per customer",
+    "items_per_order": "Items per order (basket size)",
+    "price_per_item": "Price per item",
+    "aov": "Average order value (AOV)",
+}
+
+
+def apply_hypothesis(proj: pd.DataFrame, lever: str, change: float, markets: list[str],
+                     start_month: str) -> pd.DataFrame:
+    """Raise (or cut) one driver by `change` (0.10 = +10%) in `markets`, from `start_month` onwards.
+
+    The change is a one-off step in the level of the driver, on top of whatever path the scenario
+    already has. Revenue is rebuilt as customers x orders per customer x AOV x Black Friday factor.
+    """
+    if lever not in LEVERS:
+        raise ValueError(f"Unknown lever {lever!r}; choose from {list(LEVERS)}")
+    h = proj.copy()
+    hit = h["market"].isin(markets) & (h["month"] >= start_month)
+    col = "price_per_item" if lever == "aov" else lever
+    h.loc[hit, col] = h.loc[hit, col] * (1 + change)
+    h["aov"] = h["items_per_order"] * h["price_per_item"]
+    h["revenue"] = h["customers"] * h["orders_per_customer"] * h["aov"] * h["black_friday_factor"]
+    return h
+
+
+def price_volume(proj: pd.DataFrame, price_change: float, elasticity: float, markets: list[str],
+                 start_month: str) -> pd.DataFrame:
+    """Change price per item and let customers respond with a constant price elasticity.
+
+    customers x (1 + price_change) ** (-elasticity). Elasticity 1 means a 1% price rise loses about
+    1% of customers. Revenue changes by (1 + p) ** (1 - elasticity) - 1, so it breaks even at
+    elasticity 1 whatever the price change. The elasticity is an input: the data has no price tests.
+    """
+    if elasticity < 0:
+        raise ValueError("elasticity must be >= 0 (customers fall when prices rise)")
+    h = apply_hypothesis(proj, "price_per_item", price_change, markets, start_month)
+    return apply_hypothesis(h, "customers", (1 + price_change) ** (-elasticity) - 1, markets, start_month)
+
+
+def break_even_customer_change(price_change: float) -> float:
+    """Customer change that leaves revenue flat after a price change (e.g. +5% price -> -4.8% customers)."""
+    return 1 / (1 + price_change) - 1
+
+
+def price_volume_curve(proj: pd.DataFrame, price_change: float, markets: list[str], start_month: str,
+                       elasticities=None) -> pd.DataFrame:
+    """Revenue impact over the forecast months across a range of customer responses (elasticities)."""
+    elasticities = np.round(np.arange(0, 3.01, 0.1), 2) if elasticities is None else elasticities
+    before = proj["revenue"].sum()
+    rows = []
+    for e in elasticities:
+        after = price_volume(proj, price_change, float(e), markets, start_month)["revenue"].sum()
+        rows.append({"elasticity": float(e), "revenue_change": after - before,
+                     "revenue_change_pct": after / before - 1})
+    return pd.DataFrame(rows)
+
+
+def hypothesis_impact(proj: pd.DataFrame, hyp: pd.DataFrame) -> pd.DataFrame:
+    """Revenue before/after per market plus Total: Plan Q1, Plan Q2 and 6 months."""
+    a, b = summarise(proj).set_index("market"), summarise(hyp).set_index("market")
+    out = pd.DataFrame({"before": a["six_months"], "after": b["six_months"],
+                        "plan_q1_change": b["plan_q1"] - a["plan_q1"],
+                        "plan_q2_change": b["plan_q2"] - a["plan_q2"]})
+    out["change"] = out["after"] - out["before"]
+    out["change_pct"] = out["change"] / out["before"]
+    return out.reset_index()
+
+
+def hypothesis_by_market(proj: pd.DataFrame, lever: str, change: float, start_month: str) -> pd.DataFrame:
+    """The same hypothesis applied to one market at a time: where is it worth most?"""
+    rows = []
+    for m in cfg.MARKETS:
+        imp = hypothesis_impact(proj, apply_hypothesis(proj, lever, change, [m], start_month)).set_index("market")
+        rows.append({"market": m, "extra_revenue": imp.loc["Total", "change"],
+                     "share_of_total_revenue": imp.loc["Total", "change"] / imp.loc["Total", "before"]})
+    return pd.DataFrame(rows)
+
+
+_ACTUALS: pd.DataFrame | None = None
+
+
+def plan_actuals() -> pd.DataFrame:
+    """Actual revenue per market for the plan months that have already happened (e.g. Jul-Aug 2018)."""
+    global _ACTUALS
+    if _ACTUALS is None:
+        m = pd.read_csv(P / "monthly_market.csv")
+        _ACTUALS = m[m["month"].isin(cfg.ACTUAL_MONTHS)][["market", "month", "revenue"]].reset_index(drop=True)
+    return _ACTUALS
+
+
 def summarise(proj: pd.DataFrame) -> pd.DataFrame:
-    """6-month and plan-quarter totals per market, plus a Total row."""
-    q = np.where(proj["step"] <= 3, "plan_q1", "plan_q2")
-    s = proj.assign(q=q).pivot_table(index="market", columns="q", values="revenue", aggfunc="sum")
-    s["six_months"] = s.sum(axis=1)
+    """Plan half-year totals per market, plus a Total row.
+
+    `actual` = plan months already in the data; `forecast` = the projected months; `plan_q1` and
+    `plan_q2` = the two quarters of the half-year (actuals + forecast); `six_months` = the half-year total.
+    """
+    both = pd.concat([plan_actuals().assign(kind="actual"), proj[["market", "month", "revenue"]].assign(kind="forecast")])
+    q1_end = str(pd.Period(cfg.PLAN_START, "M") + 2)
+    both["q"] = np.where(both["month"] <= q1_end, "plan_q1", "plan_q2")
+    s = both.pivot_table(index="market", columns="q", values="revenue", aggfunc="sum")
+    k = both.pivot_table(index="market", columns="kind", values="revenue", aggfunc="sum")
+    s = s.join(k).reindex(columns=["actual", "forecast", "plan_q1", "plan_q2"]).fillna(0.0)
+    s["six_months"] = s["plan_q1"] + s["plan_q2"]
     s = s.loc[cfg.MARKETS]
     s.loc["Total"] = s.sum()
     return s.reset_index()

@@ -67,6 +67,29 @@ def test_model_window_is_complete():
     assert w["month"].tolist() == expected
 
 
+def test_state_summary_matches_markets():
+    s = pd.read_csv(P / "state_summary.csv")
+    assert len(s) == len(cfg.STATES) and set(s["state"]) == set(cfg.STATES)
+    assert s["revenue_share"].sum() == pytest.approx(1.0, abs=1e-3)
+    # states roll up to the market tables used by the scenarios
+    base = pd.read_csv(P / "driver_baseline.csv").set_index("market")["revenue"]
+    roll = s.groupby("market")["revenue_month_baseline"].sum()
+    assert roll.loc[cfg.MARKETS].to_numpy() == pytest.approx(base.loc[cfg.MARKETS].to_numpy(), abs=0.01)
+    assert (s["market"] == s["state"].map(cfg.state_to_market)).all()
+    # every state sits inside Brazil's bounding box
+    assert s["lat"].between(-34, 6).all() and s["lon"].between(-74, -34).all()
+
+
+def test_daily_series_adds_up_to_monthly():
+    d = pd.read_csv(P / "daily_market.csv")
+    m = pd.read_csv(P / "monthly_market.csv")
+    m = m[m["in_model_window"]].set_index(["month", "market"])["revenue"]
+    roll = d.assign(month=d["date"].str[:7]).groupby(["month", "market"])["revenue"].sum()
+    assert roll.loc[m.index].to_numpy() == pytest.approx(m.to_numpy(), abs=0.05)
+    days = pd.to_datetime(d["date"].unique())
+    assert len(days) == (days.max() - days.min()).days + 1  # every day present
+
+
 def test_quality_report_matches_tables():
     dq = json.loads((P / "data_quality.json").read_text())
     total = pd.read_csv(P / "monthly_total.csv")

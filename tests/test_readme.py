@@ -21,8 +21,13 @@ def expected(d) -> list[str]:
     tb = d["scores"][d["scores"]["unique_id"] == "Total"].set_index("model")["bias"][["RWD", "AutoETS", "AutoTheta"]]
     return [
         f"{dq['order_status_counts']['delivered']:,} delivered orders",
-        f"R$ {b['six_months']/1e6:.2f}M** for the 6 months",
-        f"R$ {b['plan_q1']/1e6:.2f}M in Sep–Nov", f"R$ {b['plan_q2']/1e6:.2f}M in Dec–Feb",
+        f"R$ {b['six_months']/1e6:.2f}M** for {cfg.PLAN_NAME}",
+        f"R$ {b['plan_q1']/1e6:.2f}M in Q3 (of which R$ {b['actual']/1e6:.2f}M is already booked",
+        f"R$ {b['plan_q2']/1e6:.2f}M in Q4",
+        f"flat on {cfg.PREV_HALF_NAME} ({b['six_months'] / d['prev_half'] - 1:+.1%})",
+        f"{b['six_months'] / d['last_year_half'] - 1:+.0%} on {cfg.LAST_YEAR_HALF_NAME}",
+        f"picked {fs['check']['selected_by_backtest']}",
+        f"Jul–Aug {fs['check']['selected_check_total_error']:+.0%} too high",
         f"downside of R$ {dn['six_months']/1e6:.2f}M",
         f"fell {-base.loc['Total', 'customers_growth_vs_prior']:.0%} in Jun–Aug",
         f"R$ {(b['six_months']-dn['six_months'])/1e6:.2f}M below plan",
