@@ -9,8 +9,15 @@ from src import config as cfg, prepare
 P = cfg.PROCESSED_DIR
 
 
+RAW_AVAILABLE = all((cfg.RAW_DIR / f).exists() for f in cfg.RAW_FILES.values())
+
+
 @pytest.fixture(scope="module")
 def raw():
+    # The raw Olist CSVs are not committed (licence, size). Without them, e.g. on GitHub Actions, the
+    # tests that rebuild from raw data are skipped; all tests on the processed tables still run.
+    if not RAW_AVAILABLE:
+        pytest.skip("raw Olist CSVs not present (download them into data/raw/)")
     return prepare.load_raw()
 
 

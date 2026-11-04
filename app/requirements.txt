@@ -1,0 +1,6 @@
+# Packages the Streamlit app needs (used by Streamlit Community Cloud, which looks next to the app first).
+# The app only reads the tables in data/processed/, so no forecasting libraries are needed here.
+pandas==2.2.2
+numpy==1.26.4
+plotly==5.24.1
+streamlit==1.37.1

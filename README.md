@@ -1,5 +1,7 @@
 # Revenue Forecast & Scenario Planner
 
+[![tests](https://github.com/jessicaayivi/revenue-forecast-scenario-planner/actions/workflows/tests.yml/badge.svg)](https://github.com/jessicaayivi/revenue-forecast-scenario-planner/actions/workflows/tests.yml)
+
 > Demonstration project using public data (Olist). Not affiliated with any employer.
 
 **Business question:** What revenue should we plan for H2 2018, and which markets or categories should get
@@ -76,7 +78,7 @@ Friday uplift, and see the plan by quarter and market. The **What-if** tab tests
 and where the same change would be worth most. A **price vs volume** mode raises or cuts prices, lets customers
 respond with an elasticity you choose, and shows the break-even point. It uses the same engine as the notebooks, so the numbers always match.
 
-![Scenario planner](docs/images/05_planner.jpg)
+![Scenario planner: a tour of the app](docs/images/05_planner_tour.gif)
 
 ## How it works
 

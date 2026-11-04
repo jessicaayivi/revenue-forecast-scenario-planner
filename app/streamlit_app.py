@@ -144,7 +144,9 @@ def mm(v, d=2):
 
 
 def kk(v, sign=False):
-    """Money in thousands, in the chosen currency."""
+    """Money in thousands, in the chosen currency. Amounts that round to zero show as 0k (no +/-)."""
+    if abs(v * FX) < 500:
+        return f"{SYM} 0k"
     return f"{SYM} {v * FX / 1e3:{'+' if sign else ''},.0f}k"
 
 

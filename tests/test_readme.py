@@ -54,6 +54,8 @@ def test_readme_numbers_match_outputs(d):
 
 def test_readme_images_exist():
     for path in re.findall(r"!\[[^\]]*\]\(([^)]+)\)", README):
+        if path.startswith("http"):  # badges and other web images
+            continue
         assert (cfg.ROOT / path).exists(), path
 
 

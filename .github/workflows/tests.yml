@@ -1,0 +1,23 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      # The raw Olist CSVs are not in the repository (licence and size), so tests that rebuild the
+      # tables from them are skipped here; every other test runs on the committed data/processed tables.
+      - name: Run tests
+        run: python -m pytest -q -rs
