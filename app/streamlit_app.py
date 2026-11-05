@@ -466,7 +466,8 @@ profit**: a price rise also improves the margin on every sale, but the data has 
                          title=dict(text=f"Monthly revenue, before and after ({FC_LABEL})", y=0.97, x=0,
                                     xanchor="left"),
                          legend=dict(orientation="h", y=1.04, yanchor="bottom", x=0),
-                         yaxis=cur_axis(rangemode="tozero"), xaxis=dict(type="category"), hovermode="x unified")
+                         yaxis=cur_axis(rangemode="tozero"),
+                         xaxis=dict(type="category", **short_months(before["month"], step=1)), hovermode="x unified")
         plot(f3)
 
         by_mkt = imp.drop(index="Total")
